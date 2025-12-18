@@ -3,6 +3,10 @@ FROM node:20-alpine AS base
 
 WORKDIR /app
 
+# Injected dummy vars to allow build to pass when Supabase is initialized at build-time
+ENV NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
+ENV NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=dummy
+
 # Install dependencies
 FROM base AS deps
 COPY package*.json ./
