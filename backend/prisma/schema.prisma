@@ -1,0 +1,225 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  VIEWER
+}
+
+enum MatchStatus {
+  UPCOMING
+  LIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum TournamentStatus {
+  UPCOMING
+  ONGOING
+  COMPLETED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   // bcrypt hashed
+  fullName  String   @map("full_name")
+  role      UserRole @default(VIEWER)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tournaments        Tournament[]
+  adminPurchase      AdminPurchase?
+  viewerSubscription ViewerSubscription?
+  refreshTokens      RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Tournament {
+  id          String            @id @default(uuid())
+  name        String
+  description String?
+  logoUrl     String?           @map("logo_url")
+  startDate   DateTime          @map("start_date")
+  endDate     DateTime          @map("end_date")
+  venue       String?
+  oversFormat Int?              @map("overs_format") // 20 for T20, 50 for ODI, etc.
+  status      TournamentStatus? @default(UPCOMING)
+  adminId     String            @map("admin_id")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  admin   User    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  teams   Team[]
+  matches Match[]
+
+  @@index([adminId])
+  @@index([status])
+  @@map("tournaments")
+}
+
+model Team {
+  id           String   @id @default(uuid())
+  name         String
+  shortName    String?  @map("short_name")
+  logoUrl      String?  @map("logo_url")
+  captain      String?
+  coach        String?
+  tournamentId String   @map("tournament_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tournament  Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  players     Player[]
+  matchesAsA  Match[]    @relation("TeamA")
+  matchesAsB  Match[]    @relation("TeamB")
+  scoresAsBattingTeam MatchScore[] @relation("CurrentBattingTeam")
+
+  @@index([tournamentId])
+  @@map("teams")
+}
+
+model Player {
+  id           String   @id @default(uuid())
+  name         String
+  role         String? // batsman, bowler, all-rounder, wicket-keeper
+  battingStyle String?  @map("batting_style") // right-handed, left-handed
+  bowlingStyle String?  @map("bowling_style") // fast, medium, spin
+  jerseyNumber Int?     @map("jersey_number")
+  teamId       String   @map("team_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@map("players")
+}
+
+model Match {
+  id           String       @id @default(uuid())
+  tournamentId String       @map("tournament_id")
+  teamAId      String       @map("team_a_id")
+  teamBId      String       @map("team_b_id")
+  matchDate    DateTime     @map("match_date")
+  venue        String
+  overs        Int?
+  status       MatchStatus? @default(UPCOMING)
+  result       String? // e.g., "Team A won by 25 runs"
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  tournament Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  teamA      Team        @relation("TeamA", fields: [teamAId], references: [id])
+  teamB      Team        @relation("TeamB", fields: [teamBId], references: [id])
+  score      MatchScore?
+
+  @@index([tournamentId])
+  @@index([status])
+  @@index([matchDate])
+  @@map("matches")
+}
+
+model MatchScore {
+  id                   String   @id @default(uuid())
+  matchId              String   @unique @map("match_id")
+  teamARuns            Int      @default(0) @map("team_a_runs")
+  teamAWickets         Int      @default(0) @map("team_a_wickets")
+  teamAOvers           Float    @default(0) @map("team_a_overs")
+  teamBRuns            Int      @default(0) @map("team_b_runs")
+  teamBWickets         Int      @default(0) @map("team_b_wickets")
+  teamBOvers           Float    @default(0) @map("team_b_overs")
+  currentBattingTeamId String?  @map("current_batting_team_id")
+  ballByBall           Json     @default("[]") @map("ball_by_ball") // Array of ball data
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  match              Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  currentBattingTeam Team? @relation("CurrentBattingTeam", fields: [currentBattingTeamId], references: [id])
+
+  @@index([matchId])
+  @@map("match_scores")
+}
+
+model AdminPurchase {
+  id        String   @id @default(uuid())
+  adminId   String   @unique @map("admin_id")
+  amount    Decimal  @db.Decimal(10, 2)
+  status    String   @default("pending") // pending, completed, failed
+  razorpayOrderId    String? @unique @map("razorpay_order_id")
+  razorpayPaymentId  String? @unique @map("razorpay_payment_id")
+  razorpaySignature  String? @map("razorpay_signature")
+  purchaseDate       DateTime? @map("purchase_date")
+  expiryDate         DateTime? @map("expiry_date")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  admin User @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([status])
+  @@map("admin_purchases")
+}
+
+model ViewerSubscription {
+  id         String   @id @default(uuid())
+  viewerId   String   @unique @map("viewer_id")
+  amount     Decimal  @db.Decimal(10, 2)
+  isActive   Boolean  @default(false) @map("is_active")
+  razorpayOrderId    String? @unique @map("razorpay_order_id")
+  razorpayPaymentId  String? @unique @map("razorpay_payment_id")
+  razorpaySignature  String? @map("razorpay_signature")
+  startDate  DateTime? @map("start_date")
+  expiryDate DateTime? @map("expiry_date")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  viewer User @relation(fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@index([viewerId])
+  @@index([isActive])
+  @@map("viewer_subscriptions")
+}
+
+model PaymentSettings {
+  id                     String   @id @default(uuid())
+  viewerSubscriptionAmount Decimal @db.Decimal(10, 2) @map("viewer_subscription_amount")
+  viewerValidityDays     Int      @map("viewer_validity_days")
+  adminPurchaseAmount    Decimal  @db.Decimal(10, 2) @map("admin_purchase_amount")
+  adminValidityDays      Int      @map("admin_validity_days")
+  razorpayKeyId          String?  @map("razorpay_key_id")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@map("payment_settings")
+}
