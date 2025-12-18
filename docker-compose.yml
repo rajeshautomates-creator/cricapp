@@ -56,12 +56,12 @@ services:
     command: >
       sh -c "npx prisma migrate deploy && npx prisma db seed && node dist/main.js"
 
-  # Frontend
-  frontend:
+  # Web Frontend
+  web:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: cricapp-frontend
+    container_name: cricapp-web
     restart: unless-stopped
     ports:
       - "3000:3000"
