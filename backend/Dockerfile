@@ -1,11 +1,16 @@
 # Multi-stage build for NestJS backend
 # Build stage
-FROM node:20-alpine AS builder
+FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
 
-# Install build dependencies for native modules (bcrypt)
-RUN apk add --no-cache python3 make g++
+# Install build dependencies for native modules (bcrypt) and openssl for Prisma
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    openssl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
 COPY package*.json ./
@@ -25,12 +30,17 @@ COPY src ./src
 RUN npm run build
 
 # Production stage
-FROM node:20-alpine AS runner
+FROM node:20-bookworm-slim AS runner
 
 WORKDIR /app
 
-# Install build dependencies for native modules (bcrypt) - needed for production too
-RUN apk add --no-cache python3 make g++
+# Install runtime dependencies (openssl) and build tools if needed for native modules
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    openssl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install production dependencies only
 COPY package*.json ./
