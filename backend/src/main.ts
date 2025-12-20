@@ -18,7 +18,8 @@ async function bootstrap() {
 
     // CORS configuration
     app.enableCors({
-        origin: configService.get('CORS_ORIGIN') || 'http://localhost:3000',
+        origin: '*', // Explicitly allow all origins for production debugging
+        methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
         credentials: true,
     });
 
