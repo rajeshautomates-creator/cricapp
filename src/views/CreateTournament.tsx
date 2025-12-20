@@ -10,9 +10,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft, Trophy, Calendar, MapPin, Save } from 'lucide-react';
+import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { getStoredData, setStoredData, MockTournament, initialTournaments } from '@/lib/mockData';
 
 const CreateTournament = () => {
   const [name, setName] = useState('');
@@ -21,6 +21,7 @@ const CreateTournament = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [oversFormat, setOversFormat] = useState('20');
+  const [customOvers, setCustomOvers] = useState('');
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const router = useRouter();
@@ -31,23 +32,39 @@ const CreateTournament = () => {
     if (!user) return;
     setLoading(true);
 
-    const allTournaments = getStoredData<MockTournament[]>('mock_tournaments', initialTournaments);
-    const newTournament: MockTournament = {
-      id: `tournament-${Date.now()}`,
-      admin_id: user.id,
-      name, description, venue,
-      start_date: startDate,
-      end_date: endDate,
-      overs_format: parseInt(oversFormat),
-      status: 'upcoming',
-      logo_url: null,
-      created_at: new Date().toISOString()
-    };
+    try {
+      const finalOvers = oversFormat === 'custom' ? parseInt(customOvers) : parseInt(oversFormat);
 
-    setStoredData('mock_tournaments', [...allTournaments, newTournament]);
-    setLoading(false);
-    toast({ title: 'Success', description: 'Tournament created successfully!' });
-    router.push('/tournaments');
+      if (isNaN(finalOvers) || finalOvers <= 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Please provide a valid number of overs.'
+        });
+        setLoading(false);
+        return;
+      }
+
+      await api.post('/tournaments', {
+        name,
+        description,
+        venue,
+        startDate,
+        endDate,
+        oversFormat: finalOvers,
+      });
+
+      toast({ title: 'Success', description: 'Tournament created successfully!' });
+      router.push('/tournaments');
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message || 'Failed to create tournament',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -76,7 +93,40 @@ const CreateTournament = () => {
                   <div className="space-y-2"><Label htmlFor="startDate">Start Date *</Label><Input id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-12 bg-secondary" required /></div>
                   <div className="space-y-2"><Label htmlFor="endDate">End Date *</Label><Input id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-12 bg-secondary" required /></div>
                 </div>
-                <div className="space-y-2"><Label>Overs Format *</Label><Select value={oversFormat} onValueChange={setOversFormat}><SelectTrigger className="h-12 bg-secondary"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="20">T20 (20 Overs)</SelectItem><SelectItem value="50">ODI (50 Overs)</SelectItem></SelectContent></Select></div>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Overs Format *</Label>
+                    <Select value={oversFormat} onValueChange={setOversFormat}>
+                      <SelectTrigger className="h-12 bg-secondary">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="20">T20 (20 Overs)</SelectItem>
+                        <SelectItem value="50">ODI (50 Overs)</SelectItem>
+                        <SelectItem value="custom">Custom Format</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {oversFormat === 'custom' && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="space-y-2"
+                    >
+                      <Label htmlFor="customOvers">Number of Overs *</Label>
+                      <Input
+                        id="customOvers"
+                        type="number"
+                        placeholder="Enter number of overs (e.g., 10, 15)"
+                        value={customOvers}
+                        onChange={(e) => setCustomOvers(e.target.value)}
+                        className="h-12 bg-secondary"
+                        required
+                      />
+                    </motion.div>
+                  )}
+                </div>
               </div>
             </div>
             <Button type="submit" variant="hero" size="lg" className="w-full" disabled={loading}>{loading ? 'Creating...' : <><Save className="w-5 h-5 mr-2" />Create Tournament</>}</Button>

@@ -17,11 +17,25 @@ import {
 } from 'lucide-react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
+import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { getStoredData, MockTournament, initialTournaments } from '@/lib/mockData';
+
+interface Tournament {
+  id: string;
+  name: string;
+  description: string | null;
+  logoUrl: string | null;
+  startDate: string;
+  endDate: string;
+  venue: string | null;
+  oversFormat: number | null;
+  status: string | null;
+  adminId: string;
+  createdAt: string;
+}
 
 const Tournaments = () => {
-  const [tournaments, setTournaments] = useState<MockTournament[]>([]);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
@@ -29,17 +43,22 @@ const Tournaments = () => {
 
   useEffect(() => {
     fetchTournaments();
-  }, [user]);
+  }, []);
 
-  const fetchTournaments = () => {
-    const allTournaments = getStoredData<MockTournament[]>('mock_tournaments', initialTournaments);
-    setTournaments(allTournaments);
-    setLoading(false);
+  const fetchTournaments = async () => {
+    try {
+      const data = await api.get<Tournament[]>('/tournaments');
+      setTournaments(data);
+    } catch (error) {
+      console.error('Failed to fetch tournaments:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const filteredTournaments = tournaments.filter(tournament => {
     const matchesSearch = tournament.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || tournament.status === statusFilter;
+    const matchesStatus = statusFilter === 'all' || tournament.status?.toLowerCase() === statusFilter.toLowerCase();
     return matchesSearch && matchesStatus;
   });
 
@@ -151,9 +170,9 @@ const Tournaments = () => {
                   <Link href={`/tournaments/${tournament.id}`}>
                     <div className="flex items-start justify-between mb-4">
                       <div className="w-16 h-16 bg-gradient-primary rounded-xl flex items-center justify-center">
-                        {tournament.logo_url ? (
+                        {tournament.logoUrl ? (
                           <img
-                            src={tournament.logo_url}
+                            src={tournament.logoUrl}
                             alt={tournament.name}
                             className="w-12 h-12 object-contain"
                           />
@@ -180,8 +199,8 @@ const Tournaments = () => {
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4" />
                         <span>
-                          {new Date(tournament.start_date).toLocaleDateString()} -{' '}
-                          {new Date(tournament.end_date).toLocaleDateString()}
+                          {new Date(tournament.startDate).toLocaleDateString()} -{' '}
+                          {new Date(tournament.endDate).toLocaleDateString()}
                         </span>
                       </div>
                       {tournament.venue && (
@@ -192,7 +211,7 @@ const Tournaments = () => {
                       )}
                       <div className="flex items-center gap-2">
                         <Users className="w-4 h-4" />
-                        <span>{tournament.overs_format || 20} Overs Format</span>
+                        <span>{tournament.oversFormat || 20} Overs Format</span>
                       </div>
                     </div>
 
