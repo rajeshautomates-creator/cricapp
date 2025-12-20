@@ -70,6 +70,15 @@ export interface MockMatchScore {
   updated_at: string;
 }
 
+// Empty arrays for production (no demo data)
+export const initialTournaments: MockTournament[] = [];
+export const initialTeams: MockTeam[] = [];
+export const initialPlayers: MockPlayer[] = [];
+export const initialMatches: MockMatch[] = [];
+export const initialScores: MockMatchScore[] = [];
+export const mockAdminUsers: any[] = [];
+export const mockViewerSubscriptions: any[] = [];
+
 // Payment settings (for initial setup only)
 export const initialPaymentSettings = {
   viewer_subscription_amount: 20,
