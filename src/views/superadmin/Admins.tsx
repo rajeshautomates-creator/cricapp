@@ -12,16 +12,17 @@ import {
     UserPlus,
     ArrowLeft
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { UserRole } from '@/types/auth';
 
 interface AdminUser {
     id: string;
     email: string;
-    full_name: string | null;
-    created_at: string;
-    role: string;
-    purchase_status: string | null;
+    fullName: string | null;
+    createdAt: string;
+    role: UserRole;
+    purchase_status?: string | null;
 }
 
 const SuperAdminAdmins = () => {
@@ -35,48 +36,26 @@ const SuperAdminAdmins = () => {
     }, []);
 
     const fetchAdmins = async () => {
-        const { data: roles, error } = await supabase
-            .from('user_roles')
-            .select('user_id, role')
-            .in('role', ['admin', 'superadmin']);
-
-        if (error || !roles) {
+        try {
+            const response = await api.get<{ data: AdminUser[] }>('/users?limit=100');
+            const adminList = response.data.filter(u =>
+                u.role === UserRole.ADMIN || u.role === UserRole.SUPER_ADMIN
+            );
+            setAdmins(adminList);
+        } catch (error: any) {
+            toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: error.message || 'Failed to fetch admins',
+            });
+        } finally {
             setLoading(false);
-            return;
         }
-
-        const userIds = roles.map(r => r.user_id);
-
-        const { data: profiles } = await supabase
-            .from('profiles')
-            .select('*')
-            .in('user_id', userIds);
-
-        const { data: purchases } = await supabase
-            .from('admin_purchases')
-            .select('*')
-            .in('admin_id', userIds);
-
-        const adminList: AdminUser[] = profiles?.map(p => {
-            const role = roles.find(r => r.user_id === p.user_id)?.role || 'viewer';
-            const purchase = purchases?.find(pur => pur.admin_id === p.user_id);
-            return {
-                id: p.user_id,
-                email: p.email || '',
-                full_name: p.full_name,
-                created_at: p.created_at,
-                role,
-                purchase_status: purchase?.status || null
-            };
-        }) || [];
-
-        setAdmins(adminList);
-        setLoading(false);
     };
 
     const filteredAdmins = admins.filter(admin =>
         admin.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        admin.full_name?.toLowerCase().includes(searchQuery.toLowerCase())
+        admin.fullName?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     return (
@@ -145,7 +124,7 @@ const SuperAdminAdmins = () => {
                                         className="flex items-center justify-between p-6 bg-secondary rounded-2xl border border-border/50"
                                     >
                                         <div>
-                                            <div className="font-display text-lg mb-1">{admin.full_name || 'No name'}</div>
+                                            <div className="font-display text-lg mb-1">{admin.fullName || 'No name'}</div>
                                             <div className="text-sm text-muted-foreground flex items-center gap-2">
                                                 {admin.email}
                                             </div>
@@ -153,7 +132,7 @@ const SuperAdminAdmins = () => {
                                         <div className="flex items-center gap-2">
                                             <Badge
                                                 className={
-                                                    admin.role === 'superadmin'
+                                                    admin.role === UserRole.SUPER_ADMIN
                                                         ? 'bg-live text-live-foreground border-0'
                                                         : 'bg-accent text-accent-foreground border-0'
                                                 }

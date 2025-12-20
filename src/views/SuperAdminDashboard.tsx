@@ -21,23 +21,24 @@ import {
   Calendar,
   TrendingUp
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { UserRole } from '@/types/auth';
 
 interface AdminUser {
   id: string;
   email: string;
-  full_name: string | null;
-  created_at: string;
-  role: string;
-  purchase_status: string | null;
+  fullName: string | null;
+  createdAt: string;
+  role: UserRole;
+  purchase_status?: string | null;
 }
 
 interface Stats {
   totalUsers: number;
   totalAdmins: number;
-  totalSubscribers: number;
+  activeSubscribers: number;
   totalTournaments: number;
   totalRevenue: number;
 }
@@ -46,7 +47,7 @@ const SuperAdminDashboard = () => {
   const [stats, setStats] = useState<Stats>({
     totalUsers: 0,
     totalAdmins: 0,
-    totalSubscribers: 0,
+    activeSubscribers: 0,
     totalTournaments: 0,
     totalRevenue: 0
   });
@@ -57,128 +58,64 @@ const SuperAdminDashboard = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchStats();
-    fetchAdmins();
+    fetchData();
   }, []);
 
-  const fetchStats = async () => {
-    // Fetch total users
-    const { count: usersCount } = await supabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true });
+  const fetchData = async () => {
+    try {
+      const [statsRes, usersRes] = await Promise.all([
+        api.get<Stats>('/users/stats'),
+        api.get<{ data: AdminUser[] }>('/users?limit=50')
+      ]);
 
-    // Fetch total admins
-    const { count: adminsCount } = await supabase
-      .from('user_roles')
-      .select('*', { count: 'exact', head: true })
-      .eq('role', 'admin');
+      setStats({
+        ...statsRes,
+        totalRevenue: statsRes.totalRevenue || 0 // Backend currently doesn't return revenue in stats, handle it
+      });
 
-    // Fetch active subscribers
-    const { count: subscribersCount } = await supabase
-      .from('viewer_subscriptions')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_active', true)
-      .gte('expiry_date', new Date().toISOString());
-
-    // Fetch tournaments
-    const { count: tournamentsCount } = await supabase
-      .from('tournaments')
-      .select('*', { count: 'exact', head: true });
-
-    // Calculate revenue
-    const { data: subscriptions } = await supabase
-      .from('viewer_subscriptions')
-      .select('amount');
-
-    const { data: purchases } = await supabase
-      .from('admin_purchases')
-      .select('amount')
-      .eq('status', 'completed');
-
-    const subscriptionRevenue = subscriptions?.reduce((sum, s) => sum + Number(s.amount), 0) || 0;
-    const purchaseRevenue = purchases?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-
-    setStats({
-      totalUsers: usersCount || 0,
-      totalAdmins: adminsCount || 0,
-      totalSubscribers: subscribersCount || 0,
-      totalTournaments: tournamentsCount || 0,
-      totalRevenue: subscriptionRevenue + purchaseRevenue
-    });
-  };
-
-  const fetchAdmins = async () => {
-    const { data: roles, error } = await supabase
-      .from('user_roles')
-      .select('user_id, role')
-      .in('role', ['admin', 'superadmin']);
-
-    if (error || !roles) {
-      setLoading(false);
-      return;
-    }
-
-    const userIds = roles.map(r => r.user_id);
-
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('*')
-      .in('user_id', userIds);
-
-    const { data: purchases } = await supabase
-      .from('admin_purchases')
-      .select('*')
-      .in('admin_id', userIds);
-
-    const adminList: AdminUser[] = profiles?.map(p => {
-      const role = roles.find(r => r.user_id === p.user_id)?.role || 'viewer';
-      const purchase = purchases?.find(pur => pur.admin_id === p.user_id);
-      return {
-        id: p.user_id,
-        email: p.email || '',
-        full_name: p.full_name,
-        created_at: p.created_at,
-        role,
-        purchase_status: purchase?.status || null
-      };
-    }) || [];
-
-    setAdmins(adminList);
-    setLoading(false);
-  };
-
-  const promoteToAdmin = async (userId: string) => {
-    const { error } = await supabase
-      .from('user_roles')
-      .update({ role: 'admin' })
-      .eq('user_id', userId);
-
-    if (error) {
+      const adminList = usersRes.data.filter(u =>
+        u.role === UserRole.ADMIN || u.role === UserRole.SUPER_ADMIN
+      );
+      setAdmins(adminList);
+    } catch (error: any) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to promote user'
+        description: error.message || 'Failed to fetch dashboard data',
       });
-    } else {
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const promoteToAdmin = async (userId: string) => {
+    try {
+      await api.patch(`/users/${userId}/role`, { role: UserRole.ADMIN });
       toast({
         title: 'Success',
         description: 'User promoted to admin'
       });
-      fetchAdmins();
+      fetchData();
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message || 'Failed to promote user'
+      });
     }
   };
 
   const filteredAdmins = admins.filter(admin =>
     admin.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    admin.full_name?.toLowerCase().includes(searchQuery.toLowerCase())
+    admin.fullName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const statCards = [
     { icon: Users, label: 'Total Users', value: stats.totalUsers, color: 'text-primary' },
     { icon: Shield, label: 'Active Admins', value: stats.totalAdmins, color: 'text-accent' },
-    { icon: CreditCard, label: 'Subscribers', value: stats.totalSubscribers, color: 'text-gold' },
+    { icon: CreditCard, label: 'Subscribers', value: stats.activeSubscribers, color: 'text-gold' },
     { icon: Trophy, label: 'Tournaments', value: stats.totalTournaments, color: 'text-live' },
-    { icon: DollarSign, label: 'Total Revenue', value: `₹${stats.totalRevenue.toLocaleString()}`, color: 'text-primary' }
+    { icon: DollarSign, label: 'Total Revenue', value: `₹${(stats.totalRevenue || 0).toLocaleString()}`, color: 'text-primary' }
   ];
 
   return (
@@ -304,13 +241,13 @@ const SuperAdminDashboard = () => {
                       className="flex items-center justify-between p-4 bg-secondary rounded-xl"
                     >
                       <div>
-                        <div className="font-medium">{admin.full_name || 'No name'}</div>
+                        <div className="font-medium">{admin.fullName || 'No name'}</div>
                         <div className="text-sm text-muted-foreground">{admin.email}</div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge
                           className={
-                            admin.role === 'superadmin'
+                            admin.role === UserRole.SUPER_ADMIN
                               ? 'bg-live text-live-foreground'
                               : 'bg-accent text-accent-foreground'
                           }

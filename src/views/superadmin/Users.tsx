@@ -16,18 +16,18 @@ import {
   Mail,
   Calendar
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { UserRole } from '@/types/auth';
 
 interface UserData {
   id: string;
-  user_id: string;
   email: string | null;
-  full_name: string | null;
-  created_at: string;
-  role: string;
-  is_verified: boolean | null;
+  fullName: string | null;
+  createdAt: string;
+  role: UserRole;
+  is_verified?: boolean | null;
 }
 
 const SuperAdminUsers = () => {
@@ -41,94 +41,50 @@ const SuperAdminUsers = () => {
   }, []);
 
   const fetchUsers = async () => {
-    const { data: profiles, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
+    try {
+      const response = await api.get<{ data: UserData[] }>('/users?limit=100');
+      setUsers(response.data);
+    } catch (error: any) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to fetch users',
+        description: error.message || 'Failed to fetch users',
       });
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const userIds = profiles?.map(p => p.user_id) || [];
-
-    const { data: roles } = await supabase
-      .from('user_roles')
-      .select('user_id, role')
-      .in('user_id', userIds);
-
-    const usersWithRoles: UserData[] = profiles?.map(p => ({
-      id: p.id,
-      user_id: p.user_id,
-      email: p.email,
-      full_name: p.full_name,
-      created_at: p.created_at,
-      is_verified: p.is_verified,
-      role: roles?.find(r => r.user_id === p.user_id)?.role || 'viewer',
-    })) || [];
-
-    setUsers(usersWithRoles);
-    setLoading(false);
   };
 
-  const promoteToAdmin = async (userId: string) => {
-    const { error } = await supabase
-      .from('user_roles')
-      .update({ role: 'admin' })
-      .eq('user_id', userId);
-
-    if (error) {
+  const changeUserRole = async (userId: string, newRole: UserRole) => {
+    try {
+      await api.patch(`/users/${userId}/role`, { role: newRole });
+      toast({
+        title: 'Success',
+        description: `User role updated to ${newRole.toLowerCase()}`,
+      });
+      fetchUsers();
+    } catch (error: any) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to promote user',
+        description: error.message || 'Failed to update user role',
       });
-    } else {
-      toast({
-        title: 'Success',
-        description: 'User promoted to admin',
-      });
-      fetchUsers();
     }
   };
 
-  const demoteToViewer = async (userId: string) => {
-    const { error } = await supabase
-      .from('user_roles')
-      .update({ role: 'viewer' })
-      .eq('user_id', userId);
-
-    if (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to demote user',
-      });
-    } else {
-      toast({
-        title: 'Success',
-        description: 'User demoted to viewer',
-      });
-      fetchUsers();
-    }
-  };
+  const promoteToAdmin = (userId: string) => changeUserRole(userId, UserRole.ADMIN);
+  const demoteToViewer = (userId: string) => changeUserRole(userId, UserRole.VIEWER);
 
   const filteredUsers = users.filter(user =>
     user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.full_name?.toLowerCase().includes(searchQuery.toLowerCase())
+    user.fullName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
-      case 'superadmin':
+      case UserRole.SUPER_ADMIN:
         return 'bg-live text-live-foreground';
-      case 'admin':
+      case UserRole.ADMIN:
         return 'bg-accent text-accent-foreground';
       default:
         return 'bg-secondary text-secondary-foreground';
@@ -208,36 +164,36 @@ const SuperAdminUsers = () => {
                         </span>
                       </div>
                       <div>
-                        <div className="font-medium">{user.full_name || 'No name'}</div>
+                        <div className="font-medium">{user.fullName || 'No name'}</div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Mail className="w-3 h-3" />
                           {user.email}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
                           <Calendar className="w-3 h-3" />
-                          Joined {format(new Date(user.created_at), 'MMM d, yyyy')}
+                          Joined {format(new Date(user.createdAt), 'MMM d, yyyy')}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <Badge className={getRoleBadgeColor(user.role)}>
-                        {user.role}
+                        {user.role?.toUpperCase()}
                       </Badge>
-                      {user.role === 'viewer' && (
+                      {user.role === UserRole.VIEWER && (
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => promoteToAdmin(user.user_id)}
+                          onClick={() => promoteToAdmin(user.id)}
                         >
                           <UserCheck className="w-4 h-4 mr-1" />
                           Promote
                         </Button>
                       )}
-                      {user.role === 'admin' && (
+                      {user.role === UserRole.ADMIN && (
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => demoteToViewer(user.user_id)}
+                          onClick={() => demoteToViewer(user.id)}
                         >
                           <UserX className="w-4 h-4 mr-1" />
                           Demote

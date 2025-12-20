@@ -1,6 +1,6 @@
-import { Controller, Get, Patch, Delete, Param, Body, UseGuards, Req, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Req, Query } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { UpdateUserDto, ChangeRoleDto } from './dto/user.dto';
+import { CreateUserDto, UpdateUserDto, ChangeRoleDto } from './dto/user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -10,6 +10,12 @@ import { UserRole } from '@prisma/client';
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UsersController {
     constructor(private usersService: UsersService) { }
+
+    @Post()
+    @Roles(UserRole.SUPER_ADMIN)
+    async create(@Body() dto: CreateUserDto) {
+        return this.usersService.create(dto);
+    }
 
     @Get()
     @Roles(UserRole.SUPER_ADMIN)

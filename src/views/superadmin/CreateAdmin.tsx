@@ -19,9 +19,10 @@ import {
   EyeOff,
   CheckCircle2
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { signupSchema } from '@/lib/validations';
+import { UserRole } from '@/types/auth';
 
 const CreateAdmin = () => {
   const [name, setName] = useState('');
@@ -58,51 +59,29 @@ const CreateAdmin = () => {
 
     setLoading(true);
 
-    // Create user with Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/`,
-        data: {
-          full_name: name,
-        },
-      },
-    });
+    try {
+      await api.post('/users', {
+        email,
+        password,
+        fullName: name,
+        role: UserRole.ADMIN,
+      });
 
-    if (authError) {
-      setLoading(false);
+      toast({
+        title: 'Admin created',
+        description: `${name} has been added as an admin.`,
+      });
+
+      router.push('/superadmin/admins');
+    } catch (error: any) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: authError.message,
+        description: error.message || 'Failed to create admin',
       });
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    if (authData.user) {
-      // Update role to admin
-      const { error: roleError } = await supabase
-        .from('user_roles')
-        .update({ role: 'admin' })
-        .eq('user_id', authData.user.id);
-
-      if (roleError) {
-        toast({
-          variant: 'destructive',
-          title: 'Warning',
-          description: 'User created but failed to set admin role. Update manually.',
-        });
-      } else {
-        toast({
-          title: 'Admin created',
-          description: `${name} has been added as an admin.`,
-        });
-      }
-    }
-
-    setLoading(false);
-    router.push('/superadmin/users');
   };
 
   return (
