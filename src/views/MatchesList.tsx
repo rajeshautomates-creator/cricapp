@@ -131,19 +131,32 @@ const MatchesList = () => {
                     </div>
                     {match.status === 'live' && (
                       <div className="mt-4">
-                        {canViewLive ? (
-                          <Button variant="hero" size="sm" className="w-full" asChild>
-                            <Link href={`/live-scoring/${match.id}`}><Play className="w-4 h-4 mr-2" />{isAdmin ? 'Score Match' : 'Watch Live'}</Link>
-                          </Button>
-                        ) : (
-                          <Button variant="outline" size="sm" className="w-full" asChild><Link href="/subscribe">Subscribe to Watch</Link></Button>
-                        )}
+                        <Button variant="hero" size="sm" className="w-full" asChild>
+                          <Link href={isAdmin ? `/live-scoring/${match.id}` : `/matches/${match.id}`}>
+                            <Play className="w-4 h-4 mr-2" />
+                            {isAdmin ? 'Score Match' : 'Watch Live'}
+                          </Link>
+                        </Button>
                       </div>
                     )}
-                    {match.status === 'upcoming' && isAdmin && (
-                      <Button variant="outline" size="sm" className="w-full mt-4" asChild>
-                        <Link href={`/live-scoring/${match.id}`}><Play className="w-4 h-4 mr-2" />Start Match</Link>
-                      </Button>
+                    {match.status === 'upcoming' && (
+                      <div className="mt-4">
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <Link href={isAdmin ? `/live-scoring/${match.id}` : `/matches/${match.id}`}>
+                            <Play className="w-4 h-4 mr-2" />
+                            {isAdmin ? 'Start Match' : 'View Details'}
+                          </Link>
+                        </Button>
+                      </div>
+                    )}
+                    {match.status === 'completed' && (
+                      <div className="mt-4">
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <Link href={`/matches/${match.id}`}>
+                            View Results
+                          </Link>
+                        </Button>
+                      </div>
                     )}
                   </motion.div>
                 ))}

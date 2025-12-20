@@ -173,9 +173,13 @@ const Dashboard = () => {
                   <p className="text-muted-foreground text-center py-8">No matches yet</p>
                 ) : (
                   recentMatches.map((match) => (
-                    <div key={match.id} className="flex items-center justify-between p-4 bg-secondary rounded-xl">
+                    <Link
+                      key={match.id}
+                      href={`/matches/${match.id}`}
+                      className="flex items-center justify-between p-4 bg-secondary rounded-xl hover:bg-muted transition-colors group"
+                    >
                       <div className="flex items-center gap-4">
-                        <div className="font-display text-lg">
+                        <div className="font-display text-lg group-hover:text-primary transition-colors">
                           {match.teamA?.shortName || 'TBA'} vs {match.teamB?.shortName || 'TBA'}
                         </div>
                       </div>
@@ -196,8 +200,9 @@ const Dashboard = () => {
                         {match.status === "COMPLETED" && (
                           <span className="px-2 py-1 bg-muted text-muted-foreground text-xs rounded-full">COMPLETED</span>
                         )}
+                        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
                       </div>
-                    </div>
+                    </Link>
                   ))
                 )}
               </div>
