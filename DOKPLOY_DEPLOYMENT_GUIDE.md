@@ -67,6 +67,7 @@ Once the backend is deployed, you need to run the initial migrations:
 
 After deployment, create your first super admin account via the registration API:
 
+#### Bash (Linux/macOS)
 ```bash
 curl -X POST https://your-backend-domain.com/api/auth/register \
   -H "Content-Type: application/json" \
@@ -77,6 +78,21 @@ curl -X POST https://your-backend-domain.com/api/auth/register \
     "role": "SUPER_ADMIN"
   }'
 ```
+
+#### PowerShell (Windows)
+```powershell
+$body = @{
+    email = "admin@yourdomain.com"
+    password = "your-secure-password"
+    fullName = "Admin Name"
+    role = "SUPER_ADMIN"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method Post -Uri "https://your-backend-domain.com/api/auth/register" -ContentType "application/json" -Body $body
+```
+
+> [!NOTE]
+> In PowerShell, the standard `curl` command is an alias for `Invoke-WebRequest`, which has different syntax. Use `Invoke-RestMethod` or `curl.exe` instead.
 
 > **Important**: The database starts empty in production. No demo data is created automatically.
 
