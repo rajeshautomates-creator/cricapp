@@ -28,12 +28,17 @@ export class AuthService {
         const hashedPassword = await bcrypt.hash(dto.password, 10);
 
         // Create user
+        // If this is the first user, allow them to set their role (bootstrap superadmin)
+        // Otherwise, always default to VIEWER
+        const userCount = await this.prisma.user.count();
+        const role = userCount === 0 && dto.role ? dto.role : UserRole.VIEWER;
+
         const user = await this.prisma.user.create({
             data: {
                 email: dto.email,
                 password: hashedPassword,
                 fullName: dto.fullName,
-                role: UserRole.VIEWER, // Default role
+                role: role,
             },
             select: {
                 id: true,
