@@ -18,9 +18,9 @@ const Login = () => {
 
   useEffect(() => {
     if (user && role) {
-      if (role === 'superadmin') {
+      if (role === 'SUPER_ADMIN') {
         router.push('/superadmin');
-      } else if (role === 'admin') {
+      } else if (role === 'ADMIN') {
         router.push('/dashboard');
       } else {
         router.push('/matches');

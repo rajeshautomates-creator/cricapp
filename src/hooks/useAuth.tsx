@@ -1,15 +1,14 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { MockUser, initializeMockData } from '@/lib/mockData';
-
-type UserRole = 'superadmin' | 'admin' | 'viewer';
+import { api } from '@/lib/api';
+import { User, AuthResponse, UserRole } from '@/types/auth';
 
 interface AuthContextType {
-  user: MockUser | null;
-  session: { user: MockUser } | null;
+  user: User | null;
+  session: { user: User } | null;
   role: UserRole | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, fullName: string, role?: UserRole) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   hasActiveSubscription: boolean;
@@ -20,113 +19,94 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<MockUser | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
-    // Initialize mock data on app load
-    initializeMockData();
-
-    // Check for stored session
-    const storedUser = localStorage.getItem('mock_current_user');
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-      } catch {
-        localStorage.removeItem('mock_current_user');
+    const checkAuth = async () => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      if (!token) {
+        setLoading(false);
+        return;
       }
-    }
-    setLoading(false);
-  }, []);
 
-  const signUp = async (email: string, password: string, fullName: string) => {
-    // Simulate signup - in demo mode, create a viewer account
-    if (password.length < 8) {
-      const error = { message: 'Password must be at least 8 characters' };
-      toast({
-        variant: 'destructive',
-        title: 'Sign up failed',
-        description: error.message
-      });
-      return { error };
-    }
-
-    // Check if email is already registered
-    let registeredUsers: Record<string, any> = {};
-    if (typeof window !== 'undefined') {
-      registeredUsers = JSON.parse(localStorage.getItem('mock_registered_users') || '{}');
-    }
-
-    if (registeredUsers[email]) {
-      const error = { message: 'This email is already registered' };
-      toast({
-        variant: 'destructive',
-        title: 'Sign up failed',
-        description: error.message
-      });
-      return { error };
-    }
-
-    // Create new mock user
-    const newUser: MockUser = {
-      id: `user-${Date.now()}`,
-      email,
-      full_name: fullName,
-      role: 'viewer',
-      hasActiveSubscription: false
+      try {
+        const userData = await api.get<User>('/auth/me');
+        setUser(userData);
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('auth_token');
+        }
+      } finally {
+        setLoading(false);
+      }
     };
 
-    // Store in localStorage registered users
-    registeredUsers[email] = { ...newUser, password };
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('mock_registered_users', JSON.stringify(registeredUsers));
+    checkAuth();
+  }, []);
+
+  const signUp = async (email: string, password: string, fullName: string, role?: UserRole) => {
+    try {
+      const response = await api.post<{ message: string; user: User }>('/auth/register', {
+        email,
+        password,
+        fullName,
+        role,
+      });
+
+      toast({
+        title: 'Account created!',
+        description: response.message || 'You can now sign in to your account.'
+      });
+
+      return { error: null };
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Sign up failed',
+        description: error.message || 'Something went wrong'
+      });
+      return { error };
     }
-
-    toast({
-      title: 'Account created!',
-      description: 'You can now sign in to your account.'
-    });
-
-    return { error: null };
   };
 
   const signIn = async (email: string, password: string) => {
-    // Check registered users
-    let registeredUsers: Record<string, any> = {};
-    if (typeof window !== 'undefined') {
-      registeredUsers = JSON.parse(localStorage.getItem('mock_registered_users') || '{}');
-    }
+    try {
+      const response = await api.post<AuthResponse>('/auth/login', {
+        email,
+        password,
+      });
 
-    if (registeredUsers[email] && registeredUsers[email].password === password) {
-      const registeredUser = registeredUsers[email];
-      const userWithoutPassword = { ...registeredUser };
-      delete userWithoutPassword.password;
-      setUser(userWithoutPassword);
+      const { user, accessToken } = response;
+
       if (typeof window !== 'undefined') {
-        localStorage.setItem('mock_current_user', JSON.stringify(userWithoutPassword));
+        localStorage.setItem('auth_token', accessToken);
       }
+
+      setUser(user);
+
       toast({
         title: 'Welcome back!',
-        description: `Signed in as ${registeredUser.full_name}`
+        description: `Signed in as ${user.fullName}`
       });
-      return { error: null };
-    }
 
-    const error = { message: 'Invalid email or password. Please check your credentials.' };
-    toast({
-      variant: 'destructive',
-      title: 'Sign in failed',
-      description: error.message
-    });
-    return { error };
+      return { error: null };
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Sign in failed',
+        description: error.message || 'Invalid email or password'
+      });
+      return { error };
+    }
   };
 
   const signOut = async () => {
     setUser(null);
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('mock_current_user');
+      localStorage.removeItem('auth_token');
     }
     toast({
       title: 'Signed out',
@@ -143,8 +123,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signIn,
     signOut,
     hasActiveSubscription: user?.hasActiveSubscription || false,
-    isAdmin: user?.role === 'admin' || user?.role === 'superadmin',
-    isSuperAdmin: user?.role === 'superadmin'
+    isAdmin: user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN',
+    isSuperAdmin: user?.role === 'SUPER_ADMIN'
   };
 
   return (
