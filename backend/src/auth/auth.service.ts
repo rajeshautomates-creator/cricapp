@@ -15,44 +15,53 @@ export class AuthService {
     ) { }
 
     async register(dto: RegisterDto) {
-        // Check if user already exists
-        const existingUser = await this.prisma.user.findUnique({
-            where: { email: dto.email },
-        });
+        try {
+            // Check if user already exists
+            const existingUser = await this.prisma.user.findUnique({
+                where: { email: dto.email },
+            });
 
-        if (existingUser) {
-            throw new ConflictException('User with this email already exists');
+            if (existingUser) {
+                throw new ConflictException('User with this email already exists');
+            }
+
+            // Hash password
+            const hashedPassword = await bcrypt.hash(dto.password, 10);
+
+            // Create user
+            // If this is the first user, allow them to set their role (bootstrap superadmin)
+            // Otherwise, always default to VIEWER
+            const userCount = await this.prisma.user.count();
+            const role = userCount === 0 && dto.role ? dto.role : UserRole.VIEWER;
+
+            const user = await this.prisma.user.create({
+                data: {
+                    email: dto.email,
+                    password: hashedPassword,
+                    fullName: dto.fullName,
+                    role: role,
+                },
+                select: {
+                    id: true,
+                    email: true,
+                    fullName: true,
+                    role: true,
+                    createdAt: true,
+                },
+            });
+
+            return {
+                message: 'User registered successfully',
+                user,
+            };
+        } catch (error) {
+            console.error('Registration error details:', {
+                message: error.message,
+                stack: error.stack,
+                dto: { ...dto, password: '[REDACTED]' }
+            });
+            throw error;
         }
-
-        // Hash password
-        const hashedPassword = await bcrypt.hash(dto.password, 10);
-
-        // Create user
-        // If this is the first user, allow them to set their role (bootstrap superadmin)
-        // Otherwise, always default to VIEWER
-        const userCount = await this.prisma.user.count();
-        const role = userCount === 0 && dto.role ? dto.role : UserRole.VIEWER;
-
-        const user = await this.prisma.user.create({
-            data: {
-                email: dto.email,
-                password: hashedPassword,
-                fullName: dto.fullName,
-                role: role,
-            },
-            select: {
-                id: true,
-                email: true,
-                fullName: true,
-                role: true,
-                createdAt: true,
-            },
-        });
-
-        return {
-            message: 'User registered successfully',
-            user,
-        };
     }
 
     async login(dto: LoginDto) {

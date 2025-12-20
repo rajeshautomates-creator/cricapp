@@ -56,12 +56,12 @@ Once the backend is deployed, you need to run the initial migrations:
 2.  Go to the **Console** or **Terminal** tab.
 3.  Run the following commands:
     ```bash
-    # Run migrations (this happens automatically on startup)
-    npx prisma migrate deploy
-    
     # (Optional) Seed payment settings if needed
     npx prisma db seed
     ```
+    
+    > [!NOTE]
+    > **Migrations** are now configured to run automatically on application startup. You don't need to run `npx prisma migrate deploy` manually in the console unless you specifically need to.
 
 ### Create Your First Super Admin
 
