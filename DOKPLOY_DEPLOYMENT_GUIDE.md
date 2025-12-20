@@ -37,14 +37,19 @@ This guide explains how to deploy the Cricket SaaS platform on Dokploy as separa
 3.  **Deployment Configuration**:
     - **Build Path**: `/` (The root directory).
     - **Application Name**: `cricapp-frontend`
-4.  **Environment Variables**:
-    - Add `NEXT_PUBLIC_API_URL` = `https://your-backend-api-domain.com/api`
-    - Add `NODE_ENV` = `production`
-    - Add Suapbase dummy variables (Required for build):
-      - `NEXT_PUBLIC_SUPABASE_URL` = `http://localhost:54321`
-      - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` = `dummy`
+4.  **Environment Variables (CRITICAL)**:
+    - You **MUST** set these variables in the "Environment" tab **BEFORE** the first deployment.
+    - `NEXT_PUBLIC_API_URL` = `https://api.rajeshautomates.in/api` (Replace with your actual backend URL)
+    - `NODE_ENV` = `production`
+    - `NEXT_PUBLIC_SUPABASE_URL` = `http://localhost:54321` (Dummy value required for build)
+    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` = `dummy` (Dummy value required for build)
+
+    > [!WARNING]
+    > **Build-Time Variables**: `NEXT_PUBLIC_` variables are baked into the application at **build time**. If you change `NEXT_PUBLIC_API_URL`, you must **Rebuild** the application, not just restart it.
+
 5.  **Build Phase**:
     - Ensure it uses the `Dockerfile` located in `/Dockerfile`.
+    - Build Path: `/`
 6.  **Port Mapping**:
     - Map internal port `3000` to your primary domain.
 
