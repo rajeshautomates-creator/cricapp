@@ -1,7 +1,11 @@
 # Multi-stage build for NestJS backend
+# Build stage
 FROM node:20-alpine AS builder
 
 WORKDIR /app
+
+# Install build dependencies for native modules (bcrypt)
+RUN apk add --no-cache python3 make g++
 
 # Copy package files
 COPY package*.json ./
@@ -23,6 +27,9 @@ RUN npm run build
 FROM node:20-alpine AS runner
 
 WORKDIR /app
+
+# Install build dependencies for native modules (bcrypt) - needed for production too
+RUN apk add --no-cache python3 make g++
 
 # Install production dependencies only
 COPY package*.json ./
