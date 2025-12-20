@@ -1,7 +1,7 @@
 "use client";
 
 import ProtectedRoute from "@/components/ProtectedRoute";
-import ScheduleMatch from "@/pages/ScheduleMatch";
+import ScheduleMatch from "@/views/ScheduleMatch";
 
 export default function ScheduleMatchPage() {
   return (

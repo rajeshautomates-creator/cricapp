@@ -1,6 +1,6 @@
 "use client";
 
-import Subscribe from "@/pages/Subscribe";
+import Subscribe from "@/views/Subscribe";
 
 export default function SubscribePage() {
   return <Subscribe />;

@@ -1,7 +1,7 @@
 "use client";
 
 import ProtectedRoute from "@/components/ProtectedRoute";
-import Teams from "@/pages/Teams";
+import Teams from "@/views/Teams";
 
 export default function TeamsPage() {
   return (

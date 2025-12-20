@@ -1,7 +1,7 @@
 "use client";
 
 import ProtectedRoute from "@/components/ProtectedRoute";
-import Players from "@/pages/Players";
+import Players from "@/views/Players";
 
 export default function PlayersPage() {
   return (

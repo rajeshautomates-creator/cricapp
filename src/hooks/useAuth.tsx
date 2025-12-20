@@ -54,7 +54,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     // Check if email is already registered
-    const registeredUsers = JSON.parse(localStorage.getItem('mock_registered_users') || '{}');
+    let registeredUsers: Record<string, any> = {};
+    if (typeof window !== 'undefined') {
+      registeredUsers = JSON.parse(localStorage.getItem('mock_registered_users') || '{}');
+    }
+
     if (registeredUsers[email]) {
       const error = { message: 'This email is already registered' };
       toast({
@@ -76,7 +80,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Store in localStorage registered users
     registeredUsers[email] = { ...newUser, password };
-    localStorage.setItem('mock_registered_users', JSON.stringify(registeredUsers));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('mock_registered_users', JSON.stringify(registeredUsers));
+    }
 
     toast({
       title: 'Account created!',
@@ -88,13 +94,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signIn = async (email: string, password: string) => {
     // Check registered users
-    const registeredUsers = JSON.parse(localStorage.getItem('mock_registered_users') || '{}');
+    let registeredUsers: Record<string, any> = {};
+    if (typeof window !== 'undefined') {
+      registeredUsers = JSON.parse(localStorage.getItem('mock_registered_users') || '{}');
+    }
+
     if (registeredUsers[email] && registeredUsers[email].password === password) {
       const registeredUser = registeredUsers[email];
       const userWithoutPassword = { ...registeredUser };
       delete userWithoutPassword.password;
       setUser(userWithoutPassword);
-      localStorage.setItem('mock_current_user', JSON.stringify(userWithoutPassword));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('mock_current_user', JSON.stringify(userWithoutPassword));
+      }
       toast({
         title: 'Welcome back!',
         description: `Signed in as ${registeredUser.full_name}`
@@ -113,7 +125,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = async () => {
     setUser(null);
-    localStorage.removeItem('mock_current_user');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('mock_current_user');
+    }
     toast({
       title: 'Signed out',
       description: 'You have been signed out successfully'

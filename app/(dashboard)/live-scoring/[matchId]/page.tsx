@@ -1,7 +1,7 @@
 "use client";
 
 import ProtectedRoute from "@/components/ProtectedRoute";
-import LiveScoring from "@/pages/LiveScoring";
+import LiveScoring from "@/views/LiveScoring";
 
 export default function LiveScoringMatchPage() {
   return (

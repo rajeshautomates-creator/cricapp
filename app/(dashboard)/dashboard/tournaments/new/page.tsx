@@ -1,7 +1,7 @@
 "use client";
 
 import ProtectedRoute from "@/components/ProtectedRoute";
-import CreateTournament from "@/pages/CreateTournament";
+import CreateTournament from "@/views/CreateTournament";
 
 export default function CreateTournamentPage() {
   return (

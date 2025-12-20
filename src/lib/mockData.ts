@@ -90,6 +90,7 @@ export const initialPaymentSettings = {
 
 // Helper to get data from localStorage with fallback to initial data
 export const getStoredData = <T>(key: string, fallback: T): T => {
+  if (typeof window === 'undefined') return fallback;
   try {
     const stored = localStorage.getItem(key);
     return stored ? JSON.parse(stored) : fallback;
@@ -100,6 +101,7 @@ export const getStoredData = <T>(key: string, fallback: T): T => {
 
 // Helper to store data in localStorage
 export const setStoredData = <T>(key: string, data: T): void => {
+  if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(key, JSON.stringify(data));
   } catch (error) {
@@ -109,6 +111,7 @@ export const setStoredData = <T>(key: string, data: T): void => {
 
 // Initialize empty data structures in localStorage if not present
 export const initializeMockData = () => {
+  if (typeof window === 'undefined') return;
   if (!localStorage.getItem('mock_tournaments')) {
     setStoredData('mock_tournaments', []);
   }

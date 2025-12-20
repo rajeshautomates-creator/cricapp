@@ -1,7 +1,7 @@
 "use client";
 
 import ProtectedRoute from "@/components/ProtectedRoute";
-import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
+import SuperAdminDashboard from "@/views/SuperAdminDashboard";
 
 export default function SuperAdminPage() {
   return (
