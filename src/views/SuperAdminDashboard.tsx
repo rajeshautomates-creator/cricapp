@@ -195,7 +195,7 @@ const SuperAdminDashboard = () => {
 
           <nav className="space-y-1">
             {[
-              { icon: BarChart3, label: 'Dashboard', href: '/superadmin', active: true },
+              { icon: BarChart3, label: 'Dashboard', href: '/superadmin', exact: true },
               { icon: Users, label: 'Manage Users', href: '/superadmin/users' },
               { icon: Shield, label: 'Manage Admins', href: '/superadmin/admins' },
               { icon: CreditCard, label: 'Subscriptions', href: '/superadmin/subscriptions' },
@@ -205,9 +205,9 @@ const SuperAdminDashboard = () => {
               <Link
                 key={item.label}
                 href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${item.active
-                    ? 'bg-live text-live-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${typeof window !== 'undefined' && (item.exact ? window.location.pathname === item.href : window.location.pathname.startsWith(item.href))
+                  ? 'bg-live text-live-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
                   }`}
               >
                 <item.icon className="w-5 h-5" />

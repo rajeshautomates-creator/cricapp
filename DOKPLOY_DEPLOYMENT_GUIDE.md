@@ -103,8 +103,17 @@ Invoke-RestMethod -Method Post -Uri "https://your-backend-domain.com/api/auth/re
 
 > **Important**: The database starts empty in production. No demo data is created automatically.
 
-## 5. Summary of URLs
+## 6. Troubleshooting "NetworkError" or SSL Issues
 
-- **Frontend**: Accessible at your domain.
-- **Backend API**: Accessible at `your-backend-domain.com/api`.
-- **Database**: Managed internally by Dokploy.
+If the browser shows "NetworkError when attempting to fetch resource", it is almost always due to an **Invalid SSL Certificate** on the backend API domain.
+
+### How to Fix SSL in Dokploy:
+1.  Go to your **Backend Application** in Dokploy.
+2.  Go to the **Domains** tab.
+3.  Ensure your domain (e.g., `api.rajeshautomates.in`) has **SSL Enabled** (HTTPS).
+4.  If it shows "Pending" or "Error" for the certificate:
+    - Double-check that your DNS A record points to the Dokploy server IP.
+    - Click **Refresh** or **Force SSL** if available.
+5.  **Test**: Open `https://api.rajeshautomates.in/api` in your browser. If you see a "Your connection is not private" warning, the frontend **will not work** until this is fixed.
+
+Once the browser shows a "lock" icon 🔒 for the API URL, the login will work perfectly.
