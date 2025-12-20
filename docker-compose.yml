@@ -54,7 +54,7 @@ services:
     networks:
       - cricapp-network
     command: >
-      sh -c "npx prisma migrate deploy && npx prisma db seed && node dist/main.js"
+      sh -c "npx prisma migrate deploy && node dist/main.js"
 
   # Web Frontend
   web:

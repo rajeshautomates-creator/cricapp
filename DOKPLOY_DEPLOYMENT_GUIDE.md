@@ -50,18 +50,35 @@ This guide explains how to deploy the Cricket SaaS platform on Dokploy as separa
 
 ## 4. Initial Database Setup
 
-Once the backend is deployed, you need to run the initial migrations and seed the database once:
+Once the backend is deployed, you need to run the initial migrations:
 
 1.  Go to the **Backend Application** in Dokploy.
 2.  Go to the **Console** or **Terminal** tab.
 3.  Run the following commands:
     ```bash
-    # Run migrations
+    # Run migrations (this happens automatically on startup)
     npx prisma migrate deploy
     
-    # Optional: Seed the database with demo accounts
+    # (Optional) Seed payment settings if needed
     npx prisma db seed
     ```
+
+### Create Your First Super Admin
+
+After deployment, create your first super admin account via the registration API:
+
+```bash
+curl -X POST https://your-backend-domain.com/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@yourdomain.com",
+    "password": "your-secure-password",
+    "fullName": "Admin Name",
+    "role": "SUPER_ADMIN"
+  }'
+```
+
+> **Important**: The database starts empty in production. No demo data is created automatically.
 
 ## 5. Summary of URLs
 

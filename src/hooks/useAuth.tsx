@@ -1,6 +1,6 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { demoAccounts, MockUser, initializeMockData } from '@/lib/mockData';
+import { MockUser, initializeMockData } from '@/lib/mockData';
 
 type UserRole = 'superadmin' | 'admin' | 'viewer';
 
@@ -27,7 +27,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     // Initialize mock data on app load
     initializeMockData();
-    
+
     // Check for stored session
     const storedUser = localStorage.getItem('mock_current_user');
     if (storedUser) {
@@ -53,8 +53,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return { error };
     }
 
-    // Check if it's a demo account
-    if (demoAccounts[email]) {
+    // Check if email is already registered
+    const registeredUsers = JSON.parse(localStorage.getItem('mock_registered_users') || '{}');
+    if (registeredUsers[email]) {
       const error = { message: 'This email is already registered' };
       toast({
         variant: 'destructive',
@@ -74,7 +75,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     // Store in localStorage registered users
-    const registeredUsers = JSON.parse(localStorage.getItem('mock_registered_users') || '{}');
     registeredUsers[email] = { ...newUser, password };
     localStorage.setItem('mock_registered_users', JSON.stringify(registeredUsers));
 
@@ -87,18 +87,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signIn = async (email: string, password: string) => {
-    // Check demo accounts first (password: "demo123")
-    if (demoAccounts[email] && password === 'demo123') {
-      const demoUser = demoAccounts[email];
-      setUser(demoUser);
-      localStorage.setItem('mock_current_user', JSON.stringify(demoUser));
-      toast({
-        title: 'Welcome!',
-        description: `Signed in as ${demoUser.full_name}`
-      });
-      return { error: null };
-    }
-
     // Check registered users
     const registeredUsers = JSON.parse(localStorage.getItem('mock_registered_users') || '{}');
     if (registeredUsers[email] && registeredUsers[email].password === password) {
@@ -114,7 +102,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return { error: null };
     }
 
-    const error = { message: 'Invalid email or password. Try demo@admin.com / demo123' };
+    const error = { message: 'Invalid email or password. Please check your credentials.' };
     toast({
       variant: 'destructive',
       title: 'Sign in failed',

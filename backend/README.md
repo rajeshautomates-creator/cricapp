@@ -53,7 +53,7 @@ npx prisma generate
 # Run migrations
 npx prisma migrate dev
 
-# Seed database with demo data
+# (Optional) Seed database with payment settings
 npx prisma db seed
 ```
 
@@ -65,15 +65,18 @@ npm run start:dev
 
 Backend will be running at `http://localhost:4000`
 
-## 🎯 Demo Accounts
+## 🎯 Initial Setup
 
-After seeding, use these accounts:
+After running migrations, create your first super admin account:
 
-| Role | Email | Password |
-|------|-------|----------|
-| Super Admin | superadmin@demo.com | demo123 |
-| Admin | demo@admin.com | demo123 |
-| Viewer | demo@viewer.com | demo123 |
+```bash
+# Register via API
+curl -X POST http://localhost:4000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@yourdomain.com","password":"your-secure-password","fullName":"Admin Name","role":"SUPER_ADMIN"}'
+```
+
+> **Note**: The seed script only creates default payment settings. No demo users are created in production.
 
 ## 📡 API Endpoints
 
@@ -197,8 +200,10 @@ Services:
 
 5. **Post-Deployment**
    ```bash
-   # SSH into backend container and seed database (first time only)
+   # (Optional) Seed payment settings if not already created
    docker exec -it cricapp-backend npx prisma db seed
+   
+   # Create your first super admin account via the registration API
    ```
 
 ## 🔐 Security
@@ -238,13 +243,13 @@ backend/
 
 ### Manual API Testing
 
-Use the provided demo accounts to test endpoints:
+After creating your admin account, test endpoints:
 
 ```bash
-# Login as admin
+# Login with your admin account
 curl -X POST http://localhost:4000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"demo@admin.com","password":"demo123"}'
+  -d '{"email":"admin@yourdomain.com","password":"your-password"}'
 
 # Use the returned access token
 TOKEN="your-access-token"
