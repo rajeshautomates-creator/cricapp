@@ -14,11 +14,12 @@ COPY prisma ./prisma/
 # Install dependencies
 RUN npm ci --legacy-peer-deps
 
-# Copy source code
-COPY . .
-
-# Generate Prisma Client
+# Generate Prisma Client first
 RUN npx prisma generate
+
+# Copy source code and config files
+COPY tsconfig.json nest-cli.json ./
+COPY src ./src
 
 # Build the application
 RUN npm run build
