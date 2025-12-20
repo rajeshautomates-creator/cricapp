@@ -29,6 +29,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Validation for required environment variables during build
 # If specific vars are needed at build time, they must be available here.
 # For Dokploy, ensure these are set in the Environment Variables tab.
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 # Run the build
 RUN npm run build
