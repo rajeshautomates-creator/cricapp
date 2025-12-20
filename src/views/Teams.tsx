@@ -13,6 +13,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
@@ -35,25 +36,28 @@ import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import {
-  getStoredData,
-  setStoredData,
-  MockTeam,
-  MockTournament,
-  MockPlayer,
-  initialTeams,
-  initialTournaments,
-  initialPlayers
-} from '@/lib/mockData';
+import { api } from '@/lib/api';
 
-interface TeamWithTournament extends MockTeam {
+interface Tournament {
+  id: string;
+  name: string;
+}
+
+interface Team {
+  id: string;
+  name: string;
+  shortName: string | null;
+  logoUrl: string | null;
+  captain: string | null;
+  coach: string | null;
+  tournamentId: string;
   tournament?: { name: string };
-  players_count?: number;
+  playersCount?: number;
 }
 
 const Teams = () => {
-  const [teams, setTeams] = useState<TeamWithTournament[]>([]);
-  const [tournaments, setTournaments] = useState<MockTournament[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -64,58 +68,59 @@ const Teams = () => {
 
   const [newTeam, setNewTeam] = useState({
     name: '',
-    short_name: '',
+    shortName: '',
     captain: '',
     coach: '',
-    tournament_id: ''
+    tournamentId: ''
   });
 
   useEffect(() => {
     if (user) {
-      fetchTournaments();
-      fetchTeams();
+      Promise.all([fetchTournaments(), fetchTeams()]);
     }
   }, [user]);
 
-  const fetchTournaments = () => {
-    const allTournaments = getStoredData<MockTournament[]>('mock_tournaments', initialTournaments)
-      .filter(t => t.admin_id === user?.id);
-    setTournaments(allTournaments);
+  const fetchTournaments = async () => {
+    try {
+      const data = await api.get<Tournament[]>('/tournaments');
+      // For Admins, we might want to only show their own tournaments if the backend returns all.
+      // Assuming the backend returns tournaments relative to the user's role or all public ones.
+      setTournaments(data);
 
-    // Check if searchParams is available (it might be null during SSR or initial render in some contexts)
-    const tournamentParam = searchParams?.get('tournament');
-    if (tournamentParam) {
-      setSelectedTournament(tournamentParam);
-      setNewTeam(prev => ({ ...prev, tournament_id: tournamentParam }));
+      const tournamentParam = searchParams?.get('tournament');
+      if (tournamentParam) {
+        setSelectedTournament(tournamentParam);
+        setNewTeam(prev => ({ ...prev, tournamentId: tournamentParam }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch tournaments:', error);
     }
   };
 
-  const fetchTeams = () => {
-    const allTournaments = getStoredData<MockTournament[]>('mock_tournaments', initialTournaments)
-      .filter(t => t.admin_id === user?.id);
-    const tournamentIds = allTournaments.map(t => t.id);
-
-    const allTeams = getStoredData<MockTeam[]>('mock_teams', initialTeams)
-      .filter(t => tournamentIds.includes(t.tournament_id));
-
-    const allPlayers = getStoredData<MockPlayer[]>('mock_players', initialPlayers);
-
-    const teamsWithDetails = allTeams.map(team => {
-      const tournament = allTournaments.find(t => t.id === team.tournament_id);
-      const playersCount = allPlayers.filter(p => p.team_id === team.id).length;
-      return {
-        ...team,
-        tournament: tournament ? { name: tournament.name } : undefined,
-        players_count: playersCount
-      };
-    });
-
-    setTeams(teamsWithDetails);
-    setLoading(false);
+  const fetchTeams = async () => {
+    try {
+      const data = await api.get<any[]>('/teams');
+      const teamsWithDetails: Team[] = data.map(team => ({
+        id: team.id,
+        name: team.name,
+        shortName: team.shortName,
+        logoUrl: team.logoUrl,
+        captain: team.captain,
+        coach: team.coach,
+        tournamentId: team.tournamentId,
+        tournament: team.tournament ? { name: team.tournament.name } : undefined,
+        playersCount: team._count?.players || 0
+      }));
+      setTeams(teamsWithDetails);
+    } catch (error) {
+      console.error('Failed to fetch teams:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCreateTeam = () => {
-    if (!newTeam.name || !newTeam.tournament_id) {
+  const handleCreateTeam = async () => {
+    if (!newTeam.name || !newTeam.tournamentId) {
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -124,44 +129,53 @@ const Teams = () => {
       return;
     }
 
-    const allTeams = getStoredData<MockTeam[]>('mock_teams', initialTeams);
-    const newTeamData: MockTeam = {
-      id: `team-${Date.now()}`,
-      name: newTeam.name,
-      short_name: newTeam.short_name || null,
-      logo_url: null,
-      captain: newTeam.captain || null,
-      coach: newTeam.coach || null,
-      tournament_id: newTeam.tournament_id,
-      created_at: new Date().toISOString()
-    };
+    try {
+      await api.post('/teams', {
+        name: newTeam.name,
+        shortName: newTeam.shortName || null,
+        captain: newTeam.captain || null,
+        coach: newTeam.coach || null,
+        tournamentId: newTeam.tournamentId,
+      });
 
-    setStoredData('mock_teams', [...allTeams, newTeamData]);
-
-    toast({
-      title: 'Success',
-      description: 'Team created successfully'
-    });
-    setNewTeam({ name: '', short_name: '', captain: '', coach: '', tournament_id: '' });
-    setIsDialogOpen(false);
-    fetchTeams();
+      toast({
+        title: 'Success',
+        description: 'Team created successfully'
+      });
+      setNewTeam({ name: '', shortName: '', captain: '', coach: '', tournamentId: '' });
+      setIsDialogOpen(false);
+      fetchTeams();
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message || 'Failed to create team'
+      });
+    }
   };
 
-  const handleDeleteTeam = (teamId: string) => {
-    const allTeams = getStoredData<MockTeam[]>('mock_teams', initialTeams);
-    const updated = allTeams.filter(t => t.id !== teamId);
-    setStoredData('mock_teams', updated);
+  const handleDeleteTeam = async (teamId: string) => {
+    if (!confirm('Are you sure you want to delete this team?')) return;
 
-    toast({
-      title: 'Success',
-      description: 'Team deleted successfully'
-    });
-    fetchTeams();
+    try {
+      await api.delete(`/teams/${teamId}`);
+      toast({
+        title: 'Success',
+        description: 'Team deleted successfully'
+      });
+      fetchTeams();
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message || 'Failed to delete team'
+      });
+    }
   };
 
   const filteredTeams = teams.filter(team => {
     const matchesSearch = team.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTournament = selectedTournament === 'all' || team.tournament_id === selectedTournament;
+    const matchesTournament = selectedTournament === 'all' || team.tournamentId === selectedTournament;
     return matchesSearch && matchesTournament;
   });
 
@@ -193,13 +207,16 @@ const Teams = () => {
                 <DialogContent className="bg-card border-border">
                   <DialogHeader>
                     <DialogTitle className="font-display text-2xl">CREATE TEAM</DialogTitle>
+                    <DialogDescription>
+                      Enter the details below to add a new team to your tournament.
+                    </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 mt-4">
                     <div className="space-y-2">
                       <Label>Tournament *</Label>
                       <Select
-                        value={newTeam.tournament_id}
-                        onValueChange={(value) => setNewTeam({ ...newTeam, tournament_id: value })}
+                        value={newTeam.tournamentId}
+                        onValueChange={(value) => setNewTeam({ ...newTeam, tournamentId: value })}
                       >
                         <SelectTrigger className="bg-secondary">
                           <SelectValue placeholder="Select tournament" />
@@ -225,8 +242,8 @@ const Teams = () => {
                     <div className="space-y-2">
                       <Label>Short Name</Label>
                       <Input
-                        value={newTeam.short_name}
-                        onChange={(e) => setNewTeam({ ...newTeam, short_name: e.target.value })}
+                        value={newTeam.shortName}
+                        onChange={(e) => setNewTeam({ ...newTeam, shortName: e.target.value })}
                         className="bg-secondary"
                         placeholder="MI"
                         maxLength={5}
@@ -326,26 +343,26 @@ const Teams = () => {
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="w-16 h-16 bg-gradient-accent rounded-xl flex items-center justify-center">
-                      {team.logo_url ? (
+                      {team.logoUrl ? (
                         <img
-                          src={team.logo_url}
+                          src={team.logoUrl}
                           alt={team.name}
                           className="w-12 h-12 object-contain"
                         />
                       ) : (
                         <span className="font-display text-2xl text-accent-foreground">
-                          {team.short_name || team.name.substring(0, 2).toUpperCase()}
+                          {team.shortName || team.name.substring(0, 2).toUpperCase()}
                         </span>
                       )}
                     </div>
                     <Badge className="bg-secondary text-secondary-foreground">
-                      {team.players_count} Players
+                      {team.playersCount} Players
                     </Badge>
                   </div>
 
                   <h3 className="font-display text-xl mb-1">{team.name}</h3>
-                  {team.short_name && (
-                    <p className="text-sm text-muted-foreground mb-3">{team.short_name}</p>
+                  {team.shortName && (
+                    <p className="text-sm text-muted-foreground mb-3">{team.shortName}</p>
                   )}
 
                   <div className="space-y-2 text-sm text-muted-foreground mb-4">

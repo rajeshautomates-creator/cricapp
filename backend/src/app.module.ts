@@ -11,6 +11,7 @@ import { ScoresModule } from './scores/scores.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { SettingsModule } from './settings/settings.module';
 import { WebsocketModule } from './websocket/websocket.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
     imports: [
@@ -28,6 +29,7 @@ import { WebsocketModule } from './websocket/websocket.module';
         SubscriptionsModule,
         SettingsModule,
         WebsocketModule,
+        DashboardModule,
     ],
 })
 export class AppModule { }

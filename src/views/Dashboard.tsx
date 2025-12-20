@@ -17,52 +17,36 @@ import {
   LogOut
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useStats } from "@/hooks/useMockData";
-import {
-  getStoredData,
-  MockMatch,
-  MockTeam,
-  MockTournament,
-  MockMatchScore,
-  initialMatches,
-  initialTeams,
-  initialTournaments,
-  initialScores
-} from "@/lib/mockData";
+import { api } from "@/lib/api";
 
 const Dashboard = () => {
   const [recentMatches, setRecentMatches] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    tournaments: 0,
+    teams: 0,
+    matches: 0,
+    liveMatches: 0
+  });
+  const [loading, setLoading] = useState(true);
   const { signOut, user, isAdmin } = useAuth();
   const router = useRouter();
-  const stats = useStats(user?.id);
 
   useEffect(() => {
     if (user && isAdmin) {
-      fetchRecentMatches();
+      fetchDashboardData();
     }
   }, [user, isAdmin]);
 
-  const fetchRecentMatches = () => {
-    const tournaments = getStoredData<MockTournament[]>('mock_tournaments', initialTournaments)
-      .filter(t => t.admin_id === user?.id);
-    const tournamentIds = tournaments.map(t => t.id);
-
-    const allMatches = getStoredData<MockMatch[]>('mock_matches', initialMatches);
-    const allTeams = getStoredData<MockTeam[]>('mock_teams', initialTeams);
-    const allScores = getStoredData<MockMatchScore[]>('mock_scores', initialScores);
-
-    const matches = allMatches
-      .filter(m => tournamentIds.includes(m.tournament_id))
-      .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime())
-      .slice(0, 5)
-      .map(match => ({
-        ...match,
-        team_a: allTeams.find(t => t.id === match.team_a_id),
-        team_b: allTeams.find(t => t.id === match.team_b_id),
-        scores: [allScores.find(s => s.match_id === match.id)]
-      }));
-
-    setRecentMatches(matches);
+  const fetchDashboardData = async () => {
+    try {
+      const data = await api.get<any>('/dashboard/stats');
+      setStats(data.stats);
+      setRecentMatches(data.recentMatches);
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSignOut = async () => {
@@ -101,8 +85,8 @@ const Dashboard = () => {
                 key={item.label}
                 href={item.href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${item.active
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
                   }`}
               >
                 <item.icon className="w-5 h-5" />
@@ -135,7 +119,7 @@ const Dashboard = () => {
           <div className="flex items-center justify-between mb-8">
             <div>
               <h1 className="font-display text-4xl mb-1">DASHBOARD</h1>
-              <p className="text-muted-foreground">Welcome back, {user?.full_name || 'Admin'}</p>
+              <p className="text-muted-foreground">Welcome back, {user?.fullName || 'Admin'}</p>
             </div>
             <Button variant="hero" asChild>
               <Link href="/dashboard/tournaments/new">
@@ -192,24 +176,24 @@ const Dashboard = () => {
                     <div key={match.id} className="flex items-center justify-between p-4 bg-secondary rounded-xl">
                       <div className="flex items-center gap-4">
                         <div className="font-display text-lg">
-                          {match.team_a?.short_name || 'TBA'} vs {match.team_b?.short_name || 'TBA'}
+                          {match.teamA?.shortName || 'TBA'} vs {match.teamB?.shortName || 'TBA'}
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        {match.status === "live" && (
+                        {match.status === "LIVE" && (
                           <>
                             <span className="text-sm text-muted-foreground">
-                              {match.scores?.[0]?.team_a_runs || 0}/{match.scores?.[0]?.team_a_wickets || 0}
+                              {match.score?.teamARuns || 0}/{match.score?.teamAWickets || 0}
                             </span>
                             <span className="px-2 py-1 bg-live text-live-foreground text-xs rounded-full animate-pulse-live">LIVE</span>
                           </>
                         )}
-                        {match.status === "upcoming" && (
+                        {match.status === "UPCOMING" && (
                           <span className="text-sm text-muted-foreground">
-                            {new Date(match.match_date).toLocaleDateString()}
+                            {new Date(match.matchDate).toLocaleDateString()}
                           </span>
                         )}
-                        {match.status === "completed" && (
+                        {match.status === "COMPLETED" && (
                           <span className="px-2 py-1 bg-muted text-muted-foreground text-xs rounded-full">COMPLETED</span>
                         )}
                       </div>

@@ -13,6 +13,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
@@ -33,20 +34,29 @@ import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import {
-  getStoredData,
-  setStoredData,
-  MockPlayer,
-  MockTeam,
-  initialPlayers,
-  initialTeams
-} from '@/lib/mockData';
+import { api } from '@/lib/api';
+
+interface Player {
+  id: string;
+  name: string;
+  role: string | null;
+  battingStyle: string | null;
+  bowlingStyle: string | null;
+  jerseyNumber: number | null;
+  teamId: string;
+  createdAt: string;
+}
+
+interface Team {
+  id: string;
+  name: string;
+}
 
 const Players = () => {
   const params = useParams();
   const teamId = params?.teamId as string;
-  const [players, setPlayers] = useState<MockPlayer[]>([]);
-  const [team, setTeam] = useState<MockTeam | null>(null);
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [team, setTeam] = useState<Team | null>(null);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { isAdmin } = useAuth();
@@ -55,35 +65,38 @@ const Players = () => {
   const [newPlayer, setNewPlayer] = useState({
     name: '',
     role: 'batsman',
-    batting_style: 'right-handed',
-    bowling_style: '',
-    jersey_number: ''
+    battingStyle: 'right-handed',
+    bowlingStyle: '',
+    jerseyNumber: ''
   });
 
   useEffect(() => {
     if (teamId) {
-      fetchTeam();
-      fetchPlayers();
+      Promise.all([fetchTeam(), fetchPlayers()]);
     }
   }, [teamId]);
 
-  const fetchTeam = () => {
-    const allTeams = getStoredData<MockTeam[]>('mock_teams', initialTeams);
-    const foundTeam = allTeams.find(t => t.id === teamId);
-    if (foundTeam) {
-      setTeam(foundTeam);
+  const fetchTeam = async () => {
+    try {
+      const data = await api.get<Team>(`/teams/${teamId}`);
+      setTeam(data);
+    } catch (error) {
+      console.error('Failed to fetch team details:', error);
     }
   };
 
-  const fetchPlayers = () => {
-    const allPlayers = getStoredData<MockPlayer[]>('mock_players', initialPlayers)
-      .filter(p => p.team_id === teamId)
-      .sort((a, b) => (a.jersey_number || 0) - (b.jersey_number || 0));
-    setPlayers(allPlayers);
-    setLoading(false);
+  const fetchPlayers = async () => {
+    try {
+      const data = await api.get<Player[]>(`/players?teamId=${teamId}`);
+      setPlayers(data);
+    } catch (error) {
+      console.error('Failed to fetch players:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCreatePlayer = () => {
+  const handleCreatePlayer = async () => {
     if (!newPlayer.name) {
       toast({
         variant: 'destructive',
@@ -93,45 +106,55 @@ const Players = () => {
       return;
     }
 
-    const allPlayers = getStoredData<MockPlayer[]>('mock_players', initialPlayers);
-    const newPlayerData: MockPlayer = {
-      id: `player-${Date.now()}`,
-      name: newPlayer.name,
-      role: newPlayer.role || null,
-      batting_style: newPlayer.batting_style || null,
-      bowling_style: newPlayer.bowling_style || null,
-      jersey_number: newPlayer.jersey_number ? parseInt(newPlayer.jersey_number) : null,
-      team_id: teamId!,
-      created_at: new Date().toISOString()
-    };
+    try {
+      await api.post('/players', {
+        name: newPlayer.name,
+        role: newPlayer.role || null,
+        battingStyle: newPlayer.battingStyle || null,
+        bowlingStyle: newPlayer.bowlingStyle || null,
+        jerseyNumber: newPlayer.jerseyNumber ? parseInt(newPlayer.jerseyNumber) : null,
+        teamId: teamId!,
+      });
 
-    setStoredData('mock_players', [...allPlayers, newPlayerData]);
-
-    toast({
-      title: 'Success',
-      description: 'Player added successfully'
-    });
-    setNewPlayer({
-      name: '',
-      role: 'batsman',
-      batting_style: 'right-handed',
-      bowling_style: '',
-      jersey_number: ''
-    });
-    setIsDialogOpen(false);
-    fetchPlayers();
+      toast({
+        title: 'Success',
+        description: 'Player added successfully'
+      });
+      setNewPlayer({
+        name: '',
+        role: 'batsman',
+        battingStyle: 'right-handed',
+        bowlingStyle: '',
+        jerseyNumber: ''
+      });
+      setIsDialogOpen(false);
+      fetchPlayers();
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message || 'Failed to add player'
+      });
+    }
   };
 
-  const handleDeletePlayer = (playerId: string) => {
-    const allPlayers = getStoredData<MockPlayer[]>('mock_players', initialPlayers);
-    const updated = allPlayers.filter(p => p.id !== playerId);
-    setStoredData('mock_players', updated);
+  const handleDeletePlayer = async (playerId: string) => {
+    if (!confirm('Are you sure you want to remove this player?')) return;
 
-    toast({
-      title: 'Success',
-      description: 'Player removed successfully'
-    });
-    fetchPlayers();
+    try {
+      await api.delete(`/players/${playerId}`);
+      toast({
+        title: 'Success',
+        description: 'Player removed successfully'
+      });
+      fetchPlayers();
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message || 'Failed to remove player'
+      });
+    }
   };
 
   const getRoleBadge = (role: string | null) => {
@@ -188,6 +211,9 @@ const Players = () => {
                 <DialogContent className="bg-card border-border">
                   <DialogHeader>
                     <DialogTitle className="font-display text-2xl">ADD PLAYER</DialogTitle>
+                    <DialogDescription>
+                      Fill in the player's information to add them to the team squad.
+                    </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 mt-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -204,8 +230,8 @@ const Players = () => {
                         <Label>Jersey Number</Label>
                         <Input
                           type="number"
-                          value={newPlayer.jersey_number}
-                          onChange={(e) => setNewPlayer({ ...newPlayer, jersey_number: e.target.value })}
+                          value={newPlayer.jerseyNumber}
+                          onChange={(e) => setNewPlayer({ ...newPlayer, jerseyNumber: e.target.value })}
                           className="bg-secondary"
                           placeholder="18"
                         />
@@ -232,8 +258,8 @@ const Players = () => {
                       <div className="space-y-2">
                         <Label>Batting Style</Label>
                         <Select
-                          value={newPlayer.batting_style}
-                          onValueChange={(value) => setNewPlayer({ ...newPlayer, batting_style: value })}
+                          value={newPlayer.battingStyle}
+                          onValueChange={(value) => setNewPlayer({ ...newPlayer, battingStyle: value })}
                         >
                           <SelectTrigger className="bg-secondary">
                             <SelectValue />
@@ -247,8 +273,8 @@ const Players = () => {
                       <div className="space-y-2">
                         <Label>Bowling Style</Label>
                         <Select
-                          value={newPlayer.bowling_style}
-                          onValueChange={(value) => setNewPlayer({ ...newPlayer, bowling_style: value })}
+                          value={newPlayer.bowlingStyle}
+                          onValueChange={(value) => setNewPlayer({ ...newPlayer, bowlingStyle: value })}
                         >
                           <SelectTrigger className="bg-secondary">
                             <SelectValue placeholder="Select style" />
@@ -307,9 +333,9 @@ const Players = () => {
                   className="bg-card border border-border rounded-2xl p-6 text-center"
                 >
                   <div className="w-20 h-20 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
-                    {player.jersey_number ? (
+                    {player.jerseyNumber ? (
                       <span className="font-display text-3xl text-primary-foreground">
-                        {player.jersey_number}
+                        {player.jerseyNumber}
                       </span>
                     ) : (
                       <User className="w-10 h-10 text-primary-foreground" />
@@ -325,11 +351,11 @@ const Players = () => {
                   </div>
 
                   <div className="text-sm text-muted-foreground space-y-1">
-                    {player.batting_style && (
-                      <p>Bats: {player.batting_style}</p>
+                    {player.battingStyle && (
+                      <p>Bats: {player.battingStyle}</p>
                     )}
-                    {player.bowling_style && player.bowling_style !== 'none' && (
-                      <p>Bowls: {player.bowling_style}</p>
+                    {player.bowlingStyle && player.bowlingStyle !== 'none' && (
+                      <p>Bowls: {player.bowlingStyle}</p>
                     )}
                   </div>
 
