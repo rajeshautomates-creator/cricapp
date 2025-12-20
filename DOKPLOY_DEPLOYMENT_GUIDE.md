@@ -48,20 +48,22 @@ This guide explains how to deploy the Cricket SaaS platform on Dokploy as separa
 6.  **Port Mapping**:
     - Map internal port `3000` to your primary domain.
 
-## 4. Initial Database Setup
-
-Once the backend is deployed, you need to run the initial migrations:
+Once the backend is deployed, you need to initialize the database tables. Since the repository starts without migration files, you must perform an initial "push" of the schema:
 
 1.  Go to the **Backend Application** in Dokploy.
 2.  Go to the **Console** or **Terminal** tab.
-3.  Run the following commands:
+3.  Run the following command to create the tables:
     ```bash
-    # (Optional) Seed payment settings if needed
+    npx prisma db push
+    ```
+
+4.  (Optional) Seed payment settings if needed:
+    ```bash
     npx prisma db seed
     ```
     
-    > [!NOTE]
-    > **Migrations** are now configured to run automatically on application startup. You don't need to run `npx prisma migrate deploy` manually in the console unless you specifically need to.
+    > [!IMPORTANT]
+    > **Automatic Migrations**: The application is configured to run `npx prisma migrate deploy` on every startup. However, this only works **after** you have created your first migration files locally and pushed them to GitHub. For the very first setup, use `db push`.
 
 ### Create Your First Super Admin
 
