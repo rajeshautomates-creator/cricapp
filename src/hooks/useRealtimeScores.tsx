@@ -1,7 +1,24 @@
 import { useState, useEffect } from 'react';
 import { getStoredData, setStoredData, MockMatchScore, initialScores } from '@/lib/mockData';
 
-interface MatchScore {
+export interface BatsmanStats {
+  id: string;
+  name: string;
+  runs: number;
+  balls: number;
+  fours: number;
+  sixes: number;
+}
+
+export interface BowlerStats {
+  id: string;
+  name: string;
+  overs: number;
+  runs: number;
+  wickets: number;
+}
+
+export interface MatchScore {
   id: string;
   match_id: string;
   team_a_runs: number;
@@ -11,9 +28,10 @@ interface MatchScore {
   team_b_wickets: number;
   team_b_overs: number;
   current_batting_team_id: string | null;
-  current_bowler: string | null;
-  current_striker: string | null;
-  current_non_striker: string | null;
+  current_striker: BatsmanStats | null;
+  current_non_striker: BatsmanStats | null;
+  current_bowler: BowlerStats | null;
+  this_over: string[];
   ball_by_ball: any[];
   updated_at: string;
 }
@@ -28,21 +46,14 @@ export const useRealtimeScores = (matchId: string | null) => {
       return;
     }
 
-    // Fetch initial score from localStorage
     const fetchScore = () => {
-      const scores = getStoredData<MockMatchScore[]>('mock_scores', initialScores);
+      const scores = getStoredData<MatchScore[]>('mock_scores', initialScores as any);
       const matchScore = scores.find(s => s.match_id === matchId);
-      
+
       if (matchScore) {
-        setScore({
-          ...matchScore,
-          current_bowler: null,
-          current_striker: null,
-          current_non_striker: null
-        } as MatchScore);
+        setScore(matchScore);
       } else {
-        // Create a new score record if none exists
-        const newScore: MockMatchScore = {
+        const newScore: MatchScore = {
           id: `score-${Date.now()}`,
           match_id: matchId,
           team_a_runs: 0,
@@ -52,17 +63,16 @@ export const useRealtimeScores = (matchId: string | null) => {
           team_b_wickets: 0,
           team_b_overs: 0,
           current_batting_team_id: null,
+          current_striker: null,
+          current_non_striker: null,
+          current_bowler: null,
+          this_over: [],
           ball_by_ball: [],
           updated_at: new Date().toISOString()
         };
         const updatedScores = [...scores, newScore];
         setStoredData('mock_scores', updatedScores);
-        setScore({
-          ...newScore,
-          current_bowler: null,
-          current_striker: null,
-          current_non_striker: null
-        } as MatchScore);
+        setScore(newScore);
       }
       setLoading(false);
     };
@@ -81,10 +91,9 @@ export const useRealtimeScores = (matchId: string | null) => {
 
     setScore(updatedScore);
 
-    // Update localStorage
-    const scores = getStoredData<MockMatchScore[]>('mock_scores', initialScores);
-    const updatedScores = scores.map(s => 
-      s.match_id === matchId 
+    const scores = getStoredData<MatchScore[]>('mock_scores', initialScores as any);
+    const updatedScores = scores.map(s =>
+      s.match_id === matchId
         ? { ...s, ...updates, updated_at: new Date().toISOString() }
         : s
     );
@@ -100,35 +109,81 @@ export const useRealtimeScores = (matchId: string | null) => {
     isNoBall: boolean;
     isBye: boolean;
     isLegBye: boolean;
+    batsmanId?: string;
+    bowlerId?: string;
+    batsmanName?: string;
+    bowlerName?: string;
   }) => {
     if (!matchId || !score) return { error: null };
 
-    const currentBalls = Array.isArray(score.ball_by_ball) ? score.ball_by_ball : [];
-    const newBall = {
-      ...ball,
-      timestamp: new Date().toISOString(),
-      over: Math.floor(score.team_a_overs) + 1,
-      ballInOver: Math.round((score.team_a_overs % 1) * 10) + 1
+    const { striker, nonStriker, current_bowler } = {
+      striker: score.current_striker,
+      nonStriker: score.current_non_striker,
+      current_bowler: score.current_bowler
     };
 
-    const newBallByBall = [...currentBalls, newBall];
-    
-    // Calculate new overs (if not a wide or no ball, increment ball count)
-    let newOvers = score.team_a_overs;
+    // Update striker stats
+    let newStriker = striker ? { ...striker } : null;
+    if (newStriker && !ball.isWide && !ball.isNoBall && !ball.isBye && !ball.isLegBye) {
+      newStriker.runs += ball.runs;
+      newStriker.balls += 1;
+      if (ball.runs === 4) newStriker.fours += 1;
+      if (ball.runs === 6) newStriker.sixes += 1;
+    }
+
+    // Update bowler stats
+    let newBowler = current_bowler ? { ...current_bowler } : null;
+    if (newBowler) {
+      if (!ball.isWide && !ball.isNoBall) {
+        const balls = Math.round((newBowler.overs % 1) * 10);
+        if (balls >= 5) {
+          newBowler.overs = Math.floor(newBowler.overs) + 1;
+        } else {
+          newBowler.overs = Math.floor(newBowler.overs) + (balls + 1) / 10;
+        }
+      }
+      newBowler.runs += ball.runs + (ball.isWide || ball.isNoBall ? 1 : 0);
+      if (ball.isWicket) newBowler.wickets += 1;
+    }
+
+    // Calculate new team overs
+    let newTeamOvers = score.team_a_overs;
     if (!ball.isWide && !ball.isNoBall) {
       const currentBallsInOver = Math.round((score.team_a_overs % 1) * 10);
       if (currentBallsInOver >= 5) {
-        newOvers = Math.floor(score.team_a_overs) + 1;
+        newTeamOvers = Math.floor(score.team_a_overs) + 1;
       } else {
-        newOvers = Math.floor(score.team_a_overs) + (currentBallsInOver + 1) / 10;
+        newTeamOvers = Math.floor(score.team_a_overs) + (currentBallsInOver + 1) / 10;
       }
     }
+
+    // Handle strike rotation on runs
+    let finalStriker = newStriker;
+    let finalNonStriker = nonStriker ? { ...nonStriker } : null;
+    if (ball.runs % 2 !== 0 && !ball.isWide && !ball.isNoBall) {
+      [finalStriker, finalNonStriker] = [finalNonStriker, finalStriker];
+    }
+
+    // Handle over completion strike rotation
+    const isOverComplete = !ball.isWide && !ball.isNoBall && Math.round((newTeamOvers % 1) * 10) === 0;
+    if (isOverComplete) {
+      [finalStriker, finalNonStriker] = [finalNonStriker, finalStriker];
+    }
+
+    const ballTag = ball.isWicket ? 'W' :
+      ball.isWide ? 'WD' :
+        ball.isNoBall ? 'NB' :
+          ball.runs.toString();
 
     const updates: Partial<MatchScore> = {
       team_a_runs: score.team_a_runs + ball.runs + (ball.isWide || ball.isNoBall ? 1 : 0),
       team_a_wickets: ball.isWicket ? score.team_a_wickets + 1 : score.team_a_wickets,
-      team_a_overs: newOvers,
-      ball_by_ball: newBallByBall
+      team_a_overs: newTeamOvers,
+      current_striker: finalStriker,
+      current_non_striker: finalNonStriker,
+      current_bowler: newBowler,
+      this_over: isOverComplete ? [] : [...score.this_over, ballTag],
+      ball_by_ball: [...score.ball_by_ball, { ...ball, timestamp: new Date().toISOString() }]
     };
 
     return updateScore(updates);

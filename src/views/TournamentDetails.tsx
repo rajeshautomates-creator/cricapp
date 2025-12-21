@@ -16,7 +16,8 @@ import {
     Clock,
     Shield,
     Plus,
-    Trash2
+    Trash2,
+    Settings
 } from 'lucide-react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
@@ -405,12 +406,14 @@ const TournamentDetails = () => {
                                 </div>
                             ) : (
                                 tournament.matches.map((match) => (
-                                    <Link key={match.id} href={isTournamentAdmin && match.status.toLowerCase() !== 'completed' ? `/live-scoring/${match.id}` : `/matches/${match.id}`}>
-                                        <div className="group bg-card border border-border rounded-2xl overflow-hidden hover:border-accent/50 transition-all">
+                                    <div key={match.id} className="group bg-card border border-border rounded-2xl overflow-hidden hover:border-accent/50 transition-all relative">
+                                        <Link href={isTournamentAdmin && match.status.toLowerCase() !== 'completed' ? `/live-scoring/${match.id}` : `/matches/${match.id}`} className="block">
                                             <div className="p-6">
                                                 <div className="flex items-center justify-between mb-4">
                                                     <Badge variant="outline" className="text-[10px] uppercase tracking-wider">{format(new Date(match.matchDate), 'PPP p')}</Badge>
-                                                    <Badge className={getStatusColor(match.status)}>{match.status}</Badge>
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge className={getStatusColor(match.status)}>{match.status}</Badge>
+                                                    </div>
                                                 </div>
                                                 <div className="flex items-center justify-around gap-4 text-center">
                                                     <div className="flex-1">
@@ -438,8 +441,20 @@ const TournamentDetails = () => {
                                                     </span>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </Link>
+                                        </Link>
+                                        {isTournamentAdmin && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="absolute top-4 right-20 h-7 w-7 p-0 rounded-full hover:bg-accent/10 text-muted-foreground hover:text-accent transition-colors"
+                                                asChild
+                                            >
+                                                <Link href={`/schedule-match?edit=${match.id}`} onClick={(e) => e.stopPropagation()}>
+                                                    <Settings className="w-4 h-4" />
+                                                </Link>
+                                            </Button>
+                                        )}
+                                    </div>
                                 ))
                             )}
                         </div>

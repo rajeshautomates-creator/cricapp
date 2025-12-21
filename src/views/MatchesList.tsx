@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, MapPin, Play, Plus, Clock } from 'lucide-react';
+import { Calendar, MapPin, Play, Plus, Clock, Settings } from 'lucide-react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { useAuth } from '@/hooks/useAuth';
@@ -121,32 +121,53 @@ const MatchesList = () => {
                       <div className="flex items-center gap-2"><MapPin className="w-4 h-4" /><span>{match.venue}</span></div>
                     </div>
                     {match.status?.toLowerCase() === 'live' && (
-                      <div className="mt-4">
-                        <Button variant="hero" size="sm" className="w-full" asChild>
+                      <div className="mt-4 flex gap-2">
+                        <Button variant="hero" size="sm" className="flex-1" asChild>
                           <Link href={isAdmin ? `/live-scoring/${match.id}` : `/matches/${match.id}`}>
                             <Play className="w-4 h-4 mr-2" />
                             {isAdmin ? 'Score Match' : 'Watch Live'}
                           </Link>
                         </Button>
+                        {isAdmin && (
+                          <Button variant="outline" size="sm" asChild title="Edit Match">
+                            <Link href={`/schedule-match?edit=${match.id}`}>
+                              <Settings className="w-4 h-4" />
+                            </Link>
+                          </Button>
+                        )}
                       </div>
                     )}
                     {match.status?.toLowerCase() === 'upcoming' && (
-                      <div className="mt-4">
-                        <Button variant="outline" size="sm" className="w-full" asChild>
+                      <div className="mt-4 flex gap-2">
+                        <Button variant="outline" size="sm" className="flex-1" asChild>
                           <Link href={isAdmin ? `/live-scoring/${match.id}` : `/matches/${match.id}`}>
                             <Play className="w-4 h-4 mr-2" />
                             {isAdmin ? 'Start Match' : 'View Details'}
                           </Link>
                         </Button>
+                        {isAdmin && (
+                          <Button variant="outline" size="sm" asChild title="Edit Match">
+                            <Link href={`/schedule-match?edit=${match.id}`}>
+                              <Settings className="w-4 h-4" />
+                            </Link>
+                          </Button>
+                        )}
                       </div>
                     )}
                     {match.status?.toLowerCase() === 'completed' && (
-                      <div className="mt-4">
-                        <Button variant="outline" size="sm" className="w-full" asChild>
+                      <div className="mt-4 flex gap-2">
+                        <Button variant="outline" size="sm" className="flex-1" asChild>
                           <Link href={`/matches/${match.id}`}>
                             View Results
                           </Link>
                         </Button>
+                        {isAdmin && (
+                          <Button variant="outline" size="sm" asChild title="Edit Match">
+                            <Link href={`/schedule-match?edit=${match.id}`}>
+                              <Settings className="w-4 h-4" />
+                            </Link>
+                          </Button>
+                        )}
                       </div>
                     )}
                   </motion.div>
