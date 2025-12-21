@@ -14,12 +14,27 @@ import {
     ArrowLeft,
     ChevronRight,
     Clock,
-    Shield
+    Shield,
+    Plus,
+    Trash2
 } from 'lucide-react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { api } from '@/lib/api';
 import { format } from 'date-fns';
+import { useAuth } from '@/hooks/useAuth';
+import { UserRole } from '@/types/auth';
+import { useToast } from '@/hooks/use-toast';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 
 interface Team {
     id: string;
@@ -53,6 +68,7 @@ interface TournamentDetails {
     venue: string | null;
     oversFormat: number | null;
     status: string | null;
+    adminId: string;
     admin: {
         fullName: string;
     };
@@ -64,6 +80,23 @@ const TournamentDetails = () => {
     const { id } = useParams();
     const [tournament, setTournament] = useState<TournamentDetails | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isAddTeamOpen, setIsAddTeamOpen] = useState(false);
+    const [newTeam, setNewTeam] = useState({
+        name: '',
+        shortName: '',
+        captain: '',
+        coach: ''
+    });
+
+    const { isAdmin, user } = useAuth();
+    const { toast } = useToast();
+
+    // Fix role comparison using UserRole enum if available or lowercased string
+    const isTournamentAdmin = isAdmin && (
+        user?.id === tournament?.adminId ||
+        user?.role === UserRole.SUPER_ADMIN ||
+        (user?.role as string)?.toLowerCase() === 'superadmin'
+    );
 
     useEffect(() => {
         if (id) {
@@ -79,6 +112,57 @@ const TournamentDetails = () => {
             console.error('Failed to fetch tournament details:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleCreateTeam = async () => {
+        if (!newTeam.name) {
+            toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: 'Team name is required'
+            });
+            return;
+        }
+
+        try {
+            await api.post('/teams', {
+                ...newTeam,
+                tournamentId: id
+            });
+
+            toast({
+                title: 'Success',
+                description: 'Team added successfully'
+            });
+            setNewTeam({ name: '', shortName: '', captain: '', coach: '' });
+            setIsAddTeamOpen(false);
+            fetchTournamentDetails();
+        } catch (error: any) {
+            toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: error.message || 'Failed to add team'
+            });
+        }
+    };
+
+    const handleDeleteTeam = async (teamId: string) => {
+        if (!confirm('Are you sure you want to remove this team?')) return;
+
+        try {
+            await api.delete(`/teams/${teamId}`);
+            toast({
+                title: 'Success',
+                description: 'Team removed successfully'
+            });
+            fetchTournamentDetails();
+        } catch (error: any) {
+            toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: error.message || 'Failed to remove team'
+            });
         }
     };
 
@@ -168,7 +252,7 @@ const TournamentDetails = () => {
                                         <Trophy className="w-12 h-12 text-primary" />
                                     )}
                                 </div>
-                                <div>
+                                <div className="flex-1">
                                     <div className="flex items-center gap-3 mb-2">
                                         <Badge className={getStatusColor(tournament.status)}>{tournament.status}</Badge>
                                         <Badge variant="outline" className="border-primary/30 text-primary">
@@ -180,16 +264,26 @@ const TournamentDetails = () => {
                                     <div className="flex flex-wrap items-center gap-4 text-muted-foreground text-sm">
                                         <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4" /> {format(new Date(tournament.startDate), 'PPP')} - {format(new Date(tournament.endDate), 'PPP')}</span>
                                         {tournament.venue && <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4" /> {tournament.venue}</span>}
-                                        <span className="flex items-center gap-1.5"><Shield className="w-4 h-4 text-accent" /> Organized by {tournament.admin.fullName}</span>
+                                        <span className="flex items-center gap-1.5"><Shield className="w-4 h-4 text-accent" /> Organized by {tournament.admin?.fullName || 'Admin'}</span>
                                     </div>
                                 </div>
                             </div>
-                            {tournament.status === 'Ongoing' && (
-                                <Button variant="hero" size="lg">
-                                    <Clock className="w-5 h-5 mr-2" />
-                                    Live Matches
-                                </Button>
-                            )}
+                            <div className="flex gap-3">
+                                {tournament.status === 'Ongoing' && (
+                                    <Button variant="hero" size="lg">
+                                        <Clock className="w-5 h-5 mr-2" />
+                                        Live Matches
+                                    </Button>
+                                )}
+                                {isTournamentAdmin && (
+                                    <Button variant="outline" size="lg" asChild>
+                                        <Link href={`/schedule-match?tournamentId=${tournament.id}`}>
+                                            <Plus className="w-5 h-5 mr-2" />
+                                            Schedule Match
+                                        </Link>
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                         {tournament.description && (
                             <p className="mt-8 text-muted-foreground leading-relaxed max-w-3xl">
@@ -207,6 +301,43 @@ const TournamentDetails = () => {
                                 <Users className="w-6 h-6 text-primary" />
                                 TEAMS ({tournament.teams.length})
                             </h2>
+                            {isTournamentAdmin && (
+                                <Dialog open={isAddTeamOpen} onOpenChange={setIsAddTeamOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button variant="outline" size="sm">
+                                            <Plus className="w-4 h-4 mr-2" />
+                                            Add Team
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="bg-card border-border">
+                                        <DialogHeader>
+                                            <DialogTitle>ADD TEAM</DialogTitle>
+                                            <DialogDescription>Add a new team to this tournament</DialogDescription>
+                                        </DialogHeader>
+                                        <div className="space-y-4 py-4">
+                                            <div className="space-y-2">
+                                                <Label>Team Name *</Label>
+                                                <Input value={newTeam.name} onChange={(e) => setNewTeam({ ...newTeam, name: e.target.value })} placeholder="Team Name" className="bg-secondary" />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Short Name</Label>
+                                                <Input value={newTeam.shortName} onChange={(e) => setNewTeam({ ...newTeam, shortName: e.target.value })} placeholder="MI" className="bg-secondary" maxLength={5} />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-2">
+                                                    <Label>Captain</Label>
+                                                    <Input value={newTeam.captain} onChange={(e) => setNewTeam({ ...newTeam, captain: e.target.value })} placeholder="Captain Name" className="bg-secondary" />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label>Coach</Label>
+                                                    <Input value={newTeam.coach} onChange={(e) => setNewTeam({ ...newTeam, coach: e.target.value })} placeholder="Coach Name" className="bg-secondary" />
+                                                </div>
+                                            </div>
+                                            <Button variant="hero" className="w-full" onClick={handleCreateTeam}>Create Team</Button>
+                                        </div>
+                                    </DialogContent>
+                                </Dialog>
+                            )}
                         </div>
                         <div className="grid grid-cols-1 gap-3">
                             {tournament.teams.length === 0 ? (
@@ -215,20 +346,44 @@ const TournamentDetails = () => {
                                 </div>
                             ) : (
                                 tournament.teams.map((team) => (
-                                    <Link key={team.id} href={`/teams/${team.id}`}>
-                                        <div className="group bg-card border border-border rounded-xl p-4 flex items-center justify-between hover:border-primary/50 transition-all">
+                                    <div key={team.id} className="group bg-card border border-border rounded-xl p-4 hover:border-primary/50 transition-all">
+                                        <div className="flex items-center justify-between mb-3">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-10 h-10 bg-secondary rounded-lg flex items-center justify-center font-display text-sm font-bold">
                                                     {team.logoUrl ? <img src={team.logoUrl} alt={team.name} className="w-6 h-6 object-contain" /> : (team.shortName || team.name.substring(0, 2))}
                                                 </div>
                                                 <div>
-                                                    <div className="font-medium group-hover:text-primary transition-colors">{team.name}</div>
+                                                    <div className="font-medium">{team.name}</div>
                                                     <div className="text-xs text-muted-foreground">{team.shortName || 'TBD'}</div>
                                                 </div>
                                             </div>
-                                            <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+                                            {isTournamentAdmin && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                    onClick={() => handleDeleteTeam(team.id)}
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
+                                            )}
                                         </div>
-                                    </Link>
+                                        <div className="flex items-center justify-between pt-3 border-t border-border/50">
+                                            <Link
+                                                href={`/teams/${team.id}/players`}
+                                                className="text-xs font-medium text-primary hover:underline flex items-center"
+                                            >
+                                                Manage Players
+                                                <ChevronRight className="w-3 h-3 ml-1" />
+                                            </Link>
+                                            <Link
+                                                href={`/teams/${team.id}`}
+                                                className="text-xs text-muted-foreground hover:text-foreground"
+                                            >
+                                                View Profile
+                                            </Link>
+                                        </div>
+                                    </div>
                                 ))
                             )}
                         </div>
@@ -250,7 +405,7 @@ const TournamentDetails = () => {
                                 </div>
                             ) : (
                                 tournament.matches.map((match) => (
-                                    <Link key={match.id} href={`/matches/${match.id}`}>
+                                    <Link key={match.id} href={isTournamentAdmin && match.status.toLowerCase() !== 'completed' ? `/live-scoring/${match.id}` : `/matches/${match.id}`}>
                                         <div className="group bg-card border border-border rounded-2xl overflow-hidden hover:border-accent/50 transition-all">
                                             <div className="p-6">
                                                 <div className="flex items-center justify-between mb-4">
@@ -277,7 +432,10 @@ const TournamentDetails = () => {
                                                 </div>
                                                 <div className="mt-6 pt-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
                                                     <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {match.venue}</span>
-                                                    <span className="flex items-center gap-1 text-accent font-medium group-hover:underline">Match Details <ChevronRight className="w-3 h-3" /></span>
+                                                    <span className="flex items-center gap-1 text-accent font-medium group-hover:underline">
+                                                        {isTournamentAdmin && match.status.toLowerCase() !== 'completed' ? 'Score Match' : 'View Details'}
+                                                        <ChevronRight className="w-3 h-3" />
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>

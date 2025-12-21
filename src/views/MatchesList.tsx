@@ -10,7 +10,7 @@ import { Calendar, MapPin, Play, Plus, Clock } from 'lucide-react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { useAuth } from '@/hooks/useAuth';
-import { getStoredData, MockMatch, MockTeam, MockTournament, MockMatchScore, initialMatches, initialTeams, initialTournaments, initialScores } from '@/lib/mockData';
+import { api } from '@/lib/api';
 
 const MatchesList = () => {
   const [matches, setMatches] = useState<any[]>([]);
@@ -22,31 +22,22 @@ const MatchesList = () => {
     fetchMatches();
   }, []);
 
-  const fetchMatches = () => {
-    const allMatches = getStoredData<MockMatch[]>('mock_matches', initialMatches);
-    const allTeams = getStoredData<MockTeam[]>('mock_teams', initialTeams);
-    const allTournaments = getStoredData<MockTournament[]>('mock_tournaments', initialTournaments);
-    const allScores = getStoredData<MockMatchScore[]>('mock_scores', initialScores);
-
-    const matchesWithDetails = allMatches
-      .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime())
-      .map(match => ({
-        ...match,
-        team_a: allTeams.find(t => t.id === match.team_a_id),
-        team_b: allTeams.find(t => t.id === match.team_b_id),
-        tournament: allTournaments.find(t => t.id === match.tournament_id),
-        scores: allScores.find(s => s.match_id === match.id)
-      }));
-
-    setMatches(matchesWithDetails);
-    setLoading(false);
+  const fetchMatches = async () => {
+    try {
+      const data = await api.get<any[]>('/matches');
+      setMatches(data);
+    } catch (error) {
+      console.error('Failed to fetch matches:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const filteredMatches = matches.filter(m => activeTab === 'all' || m.status === activeTab);
+  const filteredMatches = matches.filter(m => activeTab === 'all' || m.status?.toLowerCase() === activeTab);
   const canViewLive = isAdmin || isSuperAdmin || hasActiveSubscription;
 
   const getStatusBadge = (status: string | null) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'live': return 'bg-live text-live-foreground animate-pulse-live';
       case 'upcoming': return 'bg-accent text-accent-foreground';
       case 'completed': return 'bg-muted text-muted-foreground';
@@ -109,27 +100,27 @@ const MatchesList = () => {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-gradient-primary rounded-lg flex items-center justify-center">
-                            <span className="font-display text-sm text-primary-foreground">{match.team_a?.short_name || 'TBA'}</span>
+                            <span className="font-display text-sm text-primary-foreground">{match.teamA?.shortName || match.teamA?.name?.substring(0, 2) || 'TBA'}</span>
                           </div>
-                          <span className="font-medium">{match.team_a?.name || 'TBA'}</span>
+                          <span className="font-medium">{match.teamA?.name || 'TBA'}</span>
                         </div>
-                        {match.scores && <span className="font-display text-xl">{match.scores.team_a_runs}/{match.scores.team_a_wickets}</span>}
+                        {match.score && <span className="font-display text-xl">{match.score.teamARuns}/{match.score.teamAWickets}</span>}
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-gradient-accent rounded-lg flex items-center justify-center">
-                            <span className="font-display text-sm text-accent-foreground">{match.team_b?.short_name || 'TBA'}</span>
+                            <span className="font-display text-sm text-accent-foreground">{match.teamB?.shortName || match.teamB?.name?.substring(0, 2) || 'TBA'}</span>
                           </div>
-                          <span className="font-medium">{match.team_b?.name || 'TBA'}</span>
+                          <span className="font-medium">{match.teamB?.name || 'TBA'}</span>
                         </div>
-                        {match.scores && <span className="font-display text-xl">{match.scores.team_b_runs}/{match.scores.team_b_wickets}</span>}
+                        {match.score && <span className="font-display text-xl">{match.score.teamBRuns}/{match.score.teamBWickets}</span>}
                       </div>
                     </div>
                     <div className="space-y-2 text-sm text-muted-foreground border-t border-border pt-4">
-                      <div className="flex items-center gap-2"><Calendar className="w-4 h-4" /><span>{new Date(match.match_date).toLocaleDateString()}</span><Clock className="w-4 h-4 ml-2" /><span>{new Date(match.match_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div>
+                      <div className="flex items-center gap-2"><Calendar className="w-4 h-4" /><span>{new Date(match.matchDate).toLocaleDateString()}</span><Clock className="w-4 h-4 ml-2" /><span>{new Date(match.matchDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div>
                       <div className="flex items-center gap-2"><MapPin className="w-4 h-4" /><span>{match.venue}</span></div>
                     </div>
-                    {match.status === 'live' && (
+                    {match.status?.toLowerCase() === 'live' && (
                       <div className="mt-4">
                         <Button variant="hero" size="sm" className="w-full" asChild>
                           <Link href={isAdmin ? `/live-scoring/${match.id}` : `/matches/${match.id}`}>
@@ -139,7 +130,7 @@ const MatchesList = () => {
                         </Button>
                       </div>
                     )}
-                    {match.status === 'upcoming' && (
+                    {match.status?.toLowerCase() === 'upcoming' && (
                       <div className="mt-4">
                         <Button variant="outline" size="sm" className="w-full" asChild>
                           <Link href={isAdmin ? `/live-scoring/${match.id}` : `/matches/${match.id}`}>
@@ -149,7 +140,7 @@ const MatchesList = () => {
                         </Button>
                       </div>
                     )}
-                    {match.status === 'completed' && (
+                    {match.status?.toLowerCase() === 'completed' && (
                       <div className="mt-4">
                         <Button variant="outline" size="sm" className="w-full" asChild>
                           <Link href={`/matches/${match.id}`}>
