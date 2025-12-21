@@ -75,7 +75,7 @@ export const initialTournaments: MockTournament[] = [];
 export const initialTeams: MockTeam[] = [];
 export const initialPlayers: MockPlayer[] = [];
 export const initialMatches: MockMatch[] = [];
-export const initialScores: MockMatchScore[] = [];
+export const initialScores: any[] = [];
 export const mockAdminUsers: any[] = [];
 export const mockViewerSubscriptions: any[] = [];
 

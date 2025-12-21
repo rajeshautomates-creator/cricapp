@@ -32,12 +32,17 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 const LiveScoring = () => {
   const params = useParams();
   const matchId = params?.matchId as string;
-  const { score, loading, addBall, updateScore } = useRealtimeScores(matchId || null);
+  const { score, loading, addBall, updateScore, undo } = useRealtimeScores(matchId || null);
   const [match, setMatch] = useState<any>(null);
   const [isWicketModalOpen, setIsWicketModalOpen] = useState(false);
   const [isSetPlayersOpen, setIsSetPlayersOpen] = useState(false);
   const [availablePlayers, setAvailablePlayers] = useState<any[]>([]);
   const [selectionType, setSelectionType] = useState<'striker' | 'non_striker' | 'bowler' | 'new_batsman'>('striker');
+  const [wicketData, setWicketData] = useState<{ dismissalType: string; fielderName: string; outPlayerId: string }>({
+    dismissalType: 'bowled',
+    fielderName: '',
+    outPlayerId: ''
+  });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -65,34 +70,44 @@ const LiveScoring = () => {
   };
 
   const handleWicket = async () => {
-    if (!score?.current_striker) return;
-    await addBall({ runs: 0, isWicket: true, isWide: false, isNoBall: false, isBye: false, isLegBye: false });
+    if (!score?.current_striker || !score?.current_bowler) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Select striker and bowler first' });
+      return;
+    }
+    setWicketData({ dismissalType: 'bowled', fielderName: '', outPlayerId: score.current_striker.id });
     setIsWicketModalOpen(true);
   };
 
-  const handleExtra = async (type: 'wide' | 'noball') => {
+  const handleExtra = async (type: 'wide' | 'noball' | 'bye' | 'legbye') => {
     if (!score?.current_bowler) {
       setSelectionType('bowler');
       setIsSetPlayersOpen(true);
       return;
     }
-    await addBall({ runs: 0, isWicket: false, isWide: type === 'wide', isNoBall: type === 'noball', isBye: false, isLegBye: false });
+    await addBall({
+      runs: 0,
+      isWicket: false,
+      isWide: type === 'wide',
+      isNoBall: type === 'noball',
+      isBye: type === 'bye',
+      isLegBye: type === 'legbye'
+    });
   };
 
   const handleSelectPlayer = async (player: any) => {
     if (selectionType === 'striker') {
-      await updateScore({ current_striker: { id: player.id, name: player.name, runs: 0, balls: 0, fours: 0, sixes: 0 } });
+      await updateScore({ current_striker: { id: player.id, name: player.name, runs: 0, balls: 0, fours: 0, sixes: 0, strikeRate: 0 } });
       if (!score?.current_non_striker) setSelectionType('non_striker');
       else setIsSetPlayersOpen(false);
     } else if (selectionType === 'non_striker') {
-      await updateScore({ current_non_striker: { id: player.id, name: player.name, runs: 0, balls: 0, fours: 0, sixes: 0 } });
+      await updateScore({ current_non_striker: { id: player.id, name: player.name, runs: 0, balls: 0, fours: 0, sixes: 0, strikeRate: 0 } });
       setIsSetPlayersOpen(false);
     } else if (selectionType === 'bowler') {
-      await updateScore({ current_bowler: { id: player.id, name: player.name, overs: 0, runs: 0, wickets: 0 } });
+      await updateScore({ current_bowler: { id: player.id, name: player.name, overs: 0, runs: 0, wickets: 0, economy: 0 } });
       setIsSetPlayersOpen(false);
     } else if (selectionType === 'new_batsman') {
-      await updateScore({ current_striker: { id: player.id, name: player.name, runs: 0, balls: 0, fours: 0, sixes: 0 } });
-      setIsWicketModalOpen(false);
+      await updateScore({ current_striker: { id: player.id, name: player.name, runs: 0, balls: 0, fours: 0, sixes: 0, strikeRate: 0 } });
+      setIsSetPlayersOpen(false);
     }
   };
 
@@ -104,8 +119,7 @@ const LiveScoring = () => {
 
     const team = teamId === match?.teamAId ? match?.teamA : match?.teamB;
     setAvailablePlayers(team?.players || []);
-    if (type === 'new_batsman') setIsWicketModalOpen(true);
-    else setIsSetPlayersOpen(true);
+    setIsSetPlayersOpen(true);
   };
 
   if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><RefreshCw className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -150,17 +164,27 @@ const LiveScoring = () => {
                         <span className="font-bold">{score?.team_a_runs || 0}/{score?.team_a_wickets || 0}</span>
                         <span className="text-lg md:text-2xl text-muted-foreground font-medium">({score?.team_a_overs || 0})</span>
                       </div>
-                      <div className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
-                        <Target className="w-4 h-4 text-accent" />
-                        CRR: {score?.team_a_overs ? (score.team_a_runs / score.team_a_overs).toFixed(2) : '0.00'}
+                      <div className="flex flex-wrap items-center gap-3 mt-1">
+                        <div className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Target className="w-3 h-3 text-accent" />
+                          CRR: {score?.team_a_overs ? (score.team_a_runs / score.team_a_overs).toFixed(2) : '0.00'}
+                        </div>
+                        <div className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Users className="w-3 h-3 text-primary" />
+                          Partnership: {score?.partnership?.runs || 0} ({score?.partnership?.balls || 0})
+                        </div>
                       </div>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2 w-full md:w-auto">
-                    <div className="bg-secondary/50 rounded-2xl p-4 w-full md:min-w-[180px]">
-                      <div className="text-[10px] text-muted-foreground uppercase font-bold mb-2 tracking-widest flex items-center justify-between">
-                        <span>This Over</span>
-                        <span className="text-accent font-display">{score?.team_a_overs && Math.round((score.team_a_overs % 1) * 10)} / 6</span>
+                    <div className="bg-secondary/50 rounded-2xl p-4 w-full md:min-w-[200px]">
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">
+                          Proj. Score: {Math.round((score?.team_a_runs || 0) / (score?.team_a_overs || 0.1) * (match?.overs || 20))}
+                        </div>
+                        <div className="text-[10px] text-accent font-display font-bold">
+                          {score?.team_a_overs && Math.round((score.team_a_overs % 1) * 10)} / 6
+                        </div>
                       </div>
                       <div className="flex gap-1.5 flex-wrap">
                         {score?.this_over?.length === 0 ? (
@@ -213,7 +237,9 @@ const LiveScoring = () => {
                             <div className="flex items-center gap-3">
                               <div className="text-right">
                                 <div className="font-display text-xl font-bold">{bat.data.runs} <span className="text-xs text-muted-foreground font-sans">({bat.data.balls})</span></div>
-                                <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-tighter">4s: {bat.data.fours} • 6s: {bat.data.sixes}</div>
+                                <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-tighter">
+                                  4s: {bat.data.fours} • 6s: {bat.data.sixes} • SR: {bat.data.strikeRate?.toFixed(1) || '0.0'}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -260,7 +286,7 @@ const LiveScoring = () => {
                             <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Wkts</div>
                           </div>
                           <div className="text-center hidden md:block">
-                            <div className="font-display font-bold">{(score.current_bowler.runs / (score.current_bowler.overs || 1)).toFixed(2)}</div>
+                            <div className="font-display font-bold">{score.current_bowler.economy?.toFixed(2) || '0.00'}</div>
                             <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Econ</div>
                           </div>
                         </div>
@@ -275,14 +301,29 @@ const LiveScoring = () => {
               </div>
             </motion.div>
 
-            {/* DEMO MODE NOTICE */}
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="bg-card/50 border border-border p-4 rounded-2xl flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-accent shrink-0 mt-0.5" />
+            {/* MATCH INSIGHTS BADGE (REPLACING DEMO NOTICE) */}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="bg-primary/5 border border-primary/10 p-4 rounded-2xl flex items-start gap-3">
+              <Trophy className="w-5 h-5 text-primary shrink-0 mt-0.5" />
               <div>
-                <div className="text-sm font-bold uppercase tracking-wider mb-1">Scoring Mode: Persistent Demo</div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Your session is being saved in real-time. Match state will persist even if you refresh or navigate away.
-                </p>
+                <div className="text-sm font-bold uppercase tracking-wider mb-1">Match Insights</div>
+                <div className="grid grid-cols-2 gap-4 mt-2">
+                  <div>
+                    <div className="text-[10px] text-muted-foreground uppercase font-bold">RRR (Req. Run Rate)</div>
+                    <div className="text-lg font-display font-bold text-primary">
+                      {score?.current_batting_team_id === match?.teamBId && match?.target
+                        ? ((match.target - (score.team_b_runs || 0)) / (Math.max(0.1, (match.overs || 20) - (score.team_b_overs || 0)))).toFixed(2)
+                        : 'N/A'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-muted-foreground uppercase font-bold">Projected Score</div>
+                    <div className="text-lg font-display font-bold text-accent">
+                      {score?.current_batting_team_id === match?.teamAId
+                        ? (score?.team_a_overs > 0 ? Math.round((score.team_a_runs / score.team_a_overs) * (match?.overs || 20)) : '--')
+                        : (match?.teamA_total || '--')}
+                    </div>
+                  </div>
+                </div>
               </div>
             </motion.div>
           </div>
@@ -321,13 +362,15 @@ const LiveScoring = () => {
                 <Users className="w-5 h-5" />
               </Button>
 
-              <div className="grid grid-cols-2 gap-3 mb-6">
-                <Button variant="outline" className="h-12 font-bold ring-1 ring-border" onClick={() => handleExtra('wide')}>WIDE</Button>
-                <Button variant="outline" className="h-12 font-bold ring-1 ring-border" onClick={() => handleExtra('noball')}>NO BALL</Button>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <Button variant="outline" className="h-10 text-xs font-bold" onClick={() => handleExtra('wide')}>WIDE</Button>
+                <Button variant="outline" className="h-10 text-xs font-bold" onClick={() => handleExtra('noball')}>NO BALL</Button>
+                <Button variant="outline" className="h-10 text-xs font-bold" onClick={() => handleExtra('bye')}>BYE</Button>
+                <Button variant="outline" className="h-10 text-xs font-bold" onClick={() => handleExtra('legbye')}>LEG BYE</Button>
               </div>
 
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => updateScore({ this_over: score?.this_over.slice(0, -1) })}>
+                <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={undo}>
                   <RotateCcw className="w-3 h-3 mr-1" /> Undo Last Ball
                 </Button>
               </div>
@@ -376,32 +419,83 @@ const LiveScoring = () => {
         </DialogContent>
       </Dialog>
 
-      {/* WICKET MODAL */}
+      {/* EXPANDED WICKET MODAL */}
       <Dialog open={isWicketModalOpen} onOpenChange={setIsWicketModalOpen}>
         <DialogContent className="bg-card border-border sm:max-w-md overflow-hidden p-0 rounded-3xl">
-          <div className="bg-live p-8 text-center text-live-foreground">
-            <Users className="w-16 h-16 mx-auto mb-4 opacity-50" />
-            <h2 className="font-display text-4xl font-bold tracking-tighter mb-2">OUT!!</h2>
-            <p className="text-live-foreground/80 font-medium">Select a new batsman to take the crease</p>
+          <div className="bg-destructive p-6 text-center text-destructive-foreground">
+            <h2 className="font-display text-3xl font-bold tracking-tighter uppercase italic">Out!!</h2>
           </div>
-          <div className="p-6">
-            <ScrollArea className="h-[300px]">
-              <div className="grid grid-cols-1 gap-2">
-                {availablePlayers.map((player) => (
-                  <Button
-                    key={player.id}
-                    variant="outline"
-                    className="w-full justify-start h-14 rounded-xl border-border hover:border-live hover:bg-live/5 text-left"
-                    onClick={() => {
-                      setSelectionType('new_batsman');
-                      handleSelectPlayer(player);
-                    }}
-                  >
-                    <div className="font-bold">{player.name}</div>
-                  </Button>
-                ))}
+          <div className="p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Dismissal Type</label>
+                <select
+                  className="w-full bg-secondary rounded-lg h-10 px-3 text-sm font-medium"
+                  value={wicketData.dismissalType}
+                  onChange={(e) => setWicketData({ ...wicketData, dismissalType: e.target.value })}
+                >
+                  <option value="bowled">Bowled</option>
+                  <option value="caught">Caught</option>
+                  <option value="lbw">LBW</option>
+                  <option value="run out">Run Out</option>
+                  <option value="stumped">Stumped</option>
+                  <option value="hit wicket">Hit Wicket</option>
+                </select>
               </div>
-            </ScrollArea>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Fielder (Optional)</label>
+                <input
+                  className="w-full bg-secondary rounded-lg h-10 px-3 text-sm"
+                  placeholder="Fielder's name"
+                  value={wicketData.fielderName}
+                  onChange={(e) => setWicketData({ ...wicketData, fielderName: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {wicketData.dismissalType === 'run out' && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Who is OUT?</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant={wicketData.outPlayerId === score?.current_striker?.id ? 'hero' : 'outline'}
+                    size="sm"
+                    onClick={() => setWicketData({ ...wicketData, outPlayerId: score?.current_striker?.id || '' })}
+                  >
+                    {score?.current_striker?.name}
+                  </Button>
+                  <Button
+                    variant={wicketData.outPlayerId === score?.current_non_striker?.id ? 'hero' : 'outline'}
+                    size="sm"
+                    onClick={() => setWicketData({ ...wicketData, outPlayerId: score?.current_non_striker?.id || '' })}
+                  >
+                    {score?.current_non_striker?.name}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <Button
+              variant="destructive"
+              className="w-full"
+              onClick={async () => {
+                await addBall({
+                  runs: 0,
+                  isWicket: true,
+                  isWide: false,
+                  isNoBall: false,
+                  isBye: false,
+                  isLegBye: false,
+                  dismissalType: wicketData.dismissalType,
+                  fielderName: wicketData.fielderName,
+                  outPlayerId: wicketData.outPlayerId
+                });
+                setIsWicketModalOpen(false);
+                openPlayerSelection('new_batsman');
+              }}
+            >
+              Confirm Wicket
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
