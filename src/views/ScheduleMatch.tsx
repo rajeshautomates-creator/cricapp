@@ -120,20 +120,25 @@ const ScheduleMatchForm = () => {
         ? `${match.matchDate}T${match.matchTime}:00`
         : `${match.matchDate}T00:00:00`;
 
-      const payload = {
-        tournamentId: match.tournamentId,
-        teamAId: match.teamAId,
-        teamBId: match.teamBId,
-        matchDate: matchDateTime,
-        venue: match.venue,
-        overs: Number(match.overs),
-      };
-
       if (editId) {
-        await api.patch(`/matches/${editId}`, payload);
+        // Omit IDs for update as backend forbids them in UpdateMatchDto
+        const updatePayload = {
+          matchDate: matchDateTime,
+          venue: match.venue,
+          overs: Number(match.overs),
+        };
+        await api.patch(`/matches/${editId}`, updatePayload);
         toast({ title: 'Success', description: 'Match updated successfully' });
       } else {
-        await api.post('/matches', payload);
+        const createPayload = {
+          tournamentId: match.tournamentId,
+          teamAId: match.teamAId,
+          teamBId: match.teamBId,
+          matchDate: matchDateTime,
+          venue: match.venue,
+          overs: Number(match.overs),
+        };
+        await api.post('/matches', createPayload);
         toast({ title: 'Success', description: 'Match scheduled successfully' });
       }
 
